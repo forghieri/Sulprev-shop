@@ -1,28 +1,39 @@
 {
   "expo": {
-    "name": "appMobile",
-    "slug": "appMobile",
+    "name": "Sulprev Shop",
+    "slug": "sulprev-shop",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/iconFront.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
+      "image": "./assets/iconHome.png",
+      "resizeMode": "stretch",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.forghieri.sulprevshop",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/iconFront.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.forghieri.sulprevshop"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "021bdadf-7346-4ca1-9c51-1971437b84d8"
+      }
+    },
+    "owner": "forghieri"
   }
 }

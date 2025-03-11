@@ -1,11 +1,29 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from "react";
+import { View, StyleSheet } from "react-native";
+import * as ScreenOrientation from "expo-screen-orientation";
+import Routes from "./src/routes";
 
 export default function App() {
+
+  
+
+  useEffect(() => {
+    // Desbloqueia a rotação da tela
+    const unlockOrientation = async () => {
+      await ScreenOrientation.unlockAsync();  // Permite rotação livre entre modos retrato e paisagem
+    };
+
+    unlockOrientation();
+
+    return () => {
+      // Ao sair do componente, desbloqueia novamente
+      ScreenOrientation.unlockAsync();
+    };
+  }, []);
+
   return (
     <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+      <Routes />
     </View>
   );
 }
@@ -13,8 +31,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "100%",  // Garantindo que a tela ocupe 100% da largura
+    height: "100%", // Garantindo que a tela ocupe 100% da altura
   },
 });
