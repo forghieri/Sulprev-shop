@@ -1,5 +1,4 @@
-// src/screens/Shop.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,101 +7,154 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Dimensions,
 } from "react-native";
-import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
+import { SvgXml } from "react-native-svg";
+import { RouteProp, useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ModelsRoutes } from "../routes/modelRoutes";
-import { Item } from "../models/Item";
-import { formatPrice } from "../utils/formatPrice";
+import { ModelsRoutes } from "../routes/modelRoutes"; // Ajuste o caminho
+import { Item } from "../models/Item"; // Ajuste o caminho
+import { formatPrice } from "../utils/formatPrice"; // Ajuste o caminho
+import { sendOrder, initPendingOrdersCheck } from "../utils/sendOrder"; // Ajuste o caminho
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 
 type ShopRouteProp = RouteProp<ModelsRoutes, "Shop">;
 type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
 
 type CartItem = Item & { quantity: number };
 
+const { width } = Dimensions.get("window");
+const ITEM_WIDTH = width * 0.8; // 80% da largura da tela
+
+const trashIcon = `
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 6H5H21" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 6V4C8 3.44772 8.44772 3 9 3H15C15.5523 3 16 3.44772 16 4V6" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M19 6V20C19 20.5523 18.5523 21 18 21H6C5.44772 21 5 20.5523 5 20V6" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 11V17" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M14 11V17" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+
 export default function Shop() {
   const route = useRoute<ShopRouteProp>();
   const navigation = useNavigation<ShopNavigationProp>();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [selectedPlan] = useState<string>("Bronze"); // Plano padrão fixo como "Bronze"
 
-  useEffect(() => {
+  const loadCartItems = useCallback(async () => {
+    try {
+      const storedCart = await AsyncStorage.getItem("cart");
+      if (storedCart) {
+        const parsedCart: CartItem[] = JSON.parse(storedCart);
+        const validCartItems = parsedCart.filter(item => item && item.id && item.name && item.images);
+        console.log("Itens carregados do AsyncStorage no Shop:", validCartItems);
+        setCartItems(validCartItems);
+      } else {
+        console.log("Nenhum item encontrado no AsyncStorage.");
+        setCartItems([]);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar carrinho:", error);
+      setCartItems([]);
+    }
+  }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadCartItems();
+      initPendingOrdersCheck();
+    }, [loadCartItems])
+  );
+
+  React.useEffect(() => {
     if (route.params?.selectedItem) {
+      console.log("Item recebido no Shop via params:", route.params.selectedItem);
       const newItem = { ...route.params.selectedItem, quantity: 1 };
       setCartItems((prevItems) => {
-        const existingItemIndex = prevItems.findIndex(
-          (item) => item.id === newItem.id
-        );
+        const existingItemIndex = prevItems.findIndex((item) => item.id === newItem.id);
+        let updatedItems = [...prevItems];
         if (existingItemIndex >= 0) {
-          const updatedItems = [...prevItems];
           updatedItems[existingItemIndex].quantity += 1;
-          return updatedItems;
         } else {
-          return [...prevItems, newItem];
+          updatedItems = [...prevItems, newItem];
         }
+        AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
+          console.error("Erro ao salvar carrinho:", error)
+        );
+        return updatedItems;
       });
       navigation.setParams({ selectedItem: undefined });
     }
   }, [route.params?.selectedItem, navigation]);
 
-  const parsePriceToNumber = (price: string): number => {
+  const parsePriceToNumber = (price: string | number | undefined): number => {
+    if (!price) return 0;
+    if (typeof price === "number") return isNaN(price) ? 0 : price;
     const cleanedPrice = price
-      .replace("R$ ", "")
-      .replace(".", "")
-      .replace(",", ".");
-    return parseFloat(cleanedPrice) || 0;
+      .replace(/R\$\s*/g, "")
+      .replace(/\s/g, "")
+      .trim();
+    const parsed = parseFloat(
+      cleanedPrice.includes(".") && cleanedPrice.includes(",")
+        ? cleanedPrice.replace(/\./g, "").replace(",", ".")
+        : cleanedPrice.replace(",", ".")
+    );
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const getItemPrice = (item: CartItem): string => {
+    if (item.targetScreen === "Parque" && item.planPrices && selectedPlan) {
+      const planPrice = item.planPrices[selectedPlan as keyof typeof item.planPrices];
+      console.log(`Preço do plano ${selectedPlan} para ${item.name}:`, planPrice);
+      return planPrice || "Preço indisponível";
+    }
+    console.log(`Preço padrão para ${item.name}:`, item.price);
+    return item.price || "Preço indisponível";
   };
 
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => {
-      const price = parsePriceToNumber(item.price);
-      return total + price * item.quantity;
+    const total = cartItems.reduce((sum, item) => {
+      const price = parsePriceToNumber(getItemPrice(item));
+      const subtotal = price * item.quantity;
+      return sum + subtotal;
     }, 0);
+    console.log("Total calculado:", total);
+    return total;
   };
 
   const increaseQuantity = (itemId: string) => {
     setCartItems((prevItems) => {
-      const updatedItems = [...prevItems];
-      const itemIndex = updatedItems.findIndex((item) => item.id === itemId);
-      if (itemIndex >= 0) {
-        updatedItems[itemIndex].quantity += 1;
-      }
+      const updatedItems = prevItems.map((item) =>
+        item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
+      );
+      AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
+        console.error("Erro ao salvar carrinho:", error)
+      );
       return updatedItems;
     });
   };
 
   const decreaseQuantity = (itemId: string) => {
     setCartItems((prevItems) => {
-      const updatedItems = [...prevItems];
-      const itemIndex = updatedItems.findIndex((item) => item.id === itemId);
-      if (itemIndex >= 0) {
-        if (updatedItems[itemIndex].quantity > 1) {
-          updatedItems[itemIndex].quantity -= 1;
-        } else {
-          updatedItems.splice(itemIndex, 1);
-        }
-      }
+      const updatedItems = prevItems.map((item) =>
+        item.id === itemId && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
+      );
+      AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
+        console.error("Erro ao salvar carrinho:", error)
+      );
       return updatedItems;
     });
   };
 
-  // Salva a venda no AsyncStorage
-  const saveSale = async () => {
-    const sale = {
-      id: Date.now().toString(), // ID único baseado em timestamp
-      items: cartItems,
-      total: calculateTotal(),
-      date: new Date().toISOString(), // Data da venda
-    };
-    try {
-      const existingSales = await AsyncStorage.getItem("sales");
-      const sales = existingSales ? JSON.parse(existingSales) : [];
-      sales.push(sale);
-      await AsyncStorage.setItem("sales", JSON.stringify(sales));
-
-    } catch (error) {
-      console.error("Erro ao salvar venda:", error);
-    }
+  const removeItem = (itemId: string) => {
+    setCartItems((prevItems) => {
+      const updatedItems = prevItems.filter((item) => item.id !== itemId);
+      AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
+        console.error("Erro ao salvar carrinho:", error)
+      );
+      return updatedItems;
+    });
   };
 
   const handleCheckout = () => {
@@ -110,48 +162,67 @@ export default function Shop() {
       Alert.alert("Carrinho Vazio", "Adicione itens ao carrinho antes de finalizar.");
       return;
     }
-    Alert.alert(
-      "Confirmar Compra",
-      `Total: R$ ${calculateTotal().toFixed(2).replace(".", ",")}\nDeseja finalizar a compra?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Finalizar",
-          onPress: async () => {
-            await saveSale(); // Salva a venda antes de limpar
-            setCartItems([]); // Limpa o carrinho
-            Alert.alert("Compra Finalizada", "Sua compra foi concluída com sucesso!");
-            navigation.navigate("AllSales"); // Navega para a tela de vendas
-          },
-        },
-      ]
+    navigation.navigate("Checkout", { cartItems, total: calculateTotal() });
+  };
+
+  const renderCartItem = ({ item }: { item: CartItem }) => {
+    console.log("Renderizando item no carrinho:", item);
+    if (!item || !item.id) {
+      console.warn("Item inválido encontrado:", item);
+      return <Text>Item inválido</Text>;
+    }
+
+    const itemPrice = getItemPrice(item);
+    const subtotalValue = parsePriceToNumber(itemPrice) * item.quantity;
+    const formattedSubtotal = formatPrice(subtotalValue);
+
+    return (
+      <View style={styles.cartItem}>
+        <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
+        <View style={styles.itemDetails}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            <TouchableOpacity
+              style={styles.trashButton}
+              onPress={() =>
+                Alert.alert(
+                  "Remover",
+                  `Deseja remover ${item.name} do carrinho?`,
+                  [
+                    { text: "Cancelar" },
+                    { text: "Sim", onPress: () => removeItem(item.id) },
+                  ]
+                )
+              }
+            >
+              <SvgXml xml={trashIcon} width={24} height={24} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.itemPrice}>Und.{itemPrice}</Text>
+          <Text style={styles.itemSubtotal}>Subtotal: {formattedSubtotal}</Text>
+          <Text style={styles.itemTag}>Origem: {item.targetScreen || "Desconhecida"}</Text>
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => decreaseQuantity(item.id)}
+            >
+              <Text style={styles.quantityButtonText}>-</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{item.quantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => increaseQuantity(item.id)}
+            >
+              <Text style={styles.quantityButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     );
   };
 
-  const renderCartItem = ({ item }: { item: CartItem }) => (
-    <View style={styles.card}>
-      <Image source={{ uri: item.images[0] }} style={styles.image} />
-      <View style={styles.textContainer}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.price}>{formatPrice(item.price)}</Text>
-      </View>
-      <View style={styles.quantityContainer}>
-        <TouchableOpacity
-          style={styles.decreaseButton}
-          onPress={() => decreaseQuantity(item.id)}
-        >
-          <Text style={styles.buttonText}>-</Text>
-        </TouchableOpacity>
-        <Text style={styles.quantityText}>{item.quantity}x</Text>
-        <TouchableOpacity
-          style={styles.increaseButton}
-          onPress={() => increaseQuantity(item.id)}
-        >
-          <Text style={styles.buttonText}>+</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const total = calculateTotal();
+  const formattedTotal = formatPrice(total);
 
   return (
     <View style={styles.container}>
@@ -160,14 +231,12 @@ export default function Shop() {
         <>
           <FlatList
             data={cartItems}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id || Math.random().toString()}
             renderItem={renderCartItem}
             showsVerticalScrollIndicator={false}
           />
           <View style={styles.totalContainer}>
-            <Text style={styles.totalText}>
-              Total: R$ {calculateTotal().toFixed(2).replace(".", ",")}
-            </Text>
+            <Text style={styles.totalText}>Total: {formattedTotal}</Text>
             <TouchableOpacity
               style={styles.checkoutButton}
               onPress={handleCheckout}
@@ -193,69 +262,92 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
+    textAlign: "center",
   },
-  card: {
+  cartItem: {
     flexDirection: "row",
+    width: ITEM_WIDTH,
+    alignSelf: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 10,
     padding: 10,
-    marginBottom: 10,
-    alignItems: "center",
+    marginBottom: 15,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    position: "relative", // Necessário para posicionamento absoluto dos botões
   },
-  image: {
-    width: 60,
-    height: 60,
+  itemImage: {
+    width: 80,
+    height: 80,
     borderRadius: 5,
     marginRight: 10,
   },
-  textContainer: {
+  itemDetails: {
     flex: 1,
   },
-  name: {
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  itemName: {
     fontSize: 16,
     fontWeight: "bold",
+    color: "#333",
+    flex: 1,
   },
-  price: {
+  itemPrice: {
     fontSize: 14,
     color: "#666",
+    marginBottom: 5,
+  },
+  itemSubtotal: {
+    fontSize: 14,
+    color: "#28A745",
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  itemTag: {
+    fontSize: 12,
+    color: "#888",
+    marginBottom: 5,
   },
   quantityContainer: {
     flexDirection: "row",
     alignItems: "center",
+    position: "absolute",
+    bottom: 10, // Posiciona na parte inferior
+    right: 10,  // Posiciona à direita
   },
-  decreaseButton: {
-    backgroundColor: "#FF0000",
-    borderRadius: 12,
-    width: 24,
-    height: 24,
-    alignItems: "center",
+  quantityButton: {
+    width: 25,
+    height: 25,
+    backgroundColor: "#007BFF",
+    borderRadius: 12.5,
     justifyContent: "center",
-    marginRight: 5,
-  },
-  increaseButton: {
-    backgroundColor: "#28A745",
-    borderRadius: 12,
-    width: 24,
-    height: 24,
     alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 5,
+    marginHorizontal: 3,
   },
-  buttonText: {
-    color: "#FFFFFF",
+  quantityButtonText: {
+    color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
-    lineHeight: 20,
   },
   quantityText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
+    color: "#333",
     marginHorizontal: 5,
+  },
+  trashButton: {
+    width: 30,
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
   },
   totalContainer: {
     marginTop: 20,
