@@ -5,6 +5,9 @@ import AllSales from "../screens/AllSales";
 import NewItem from "../screens/NewItem";
 import Shop from "../screens/Shop";
 import Home from "../screens/Home";
+import Funeraria from "../screens/Funeraria";
+import Planos from "../screens/Planos";
+import Parque from "../screens/Parque";
 
 
 const Stack = createNativeStackNavigator();
@@ -30,6 +33,21 @@ export default function StackRoutes() {
             <Stack.Screen
                 name="AllSales"
                 component={AllSales}
+
+            />
+            <Stack.Screen
+                name="Planos"
+                component={Planos}
+
+            />
+            <Stack.Screen
+                name="Parque"
+                component={Parque}
+
+            />
+            <Stack.Screen
+                name="Funeraria"
+                component={Funeraria}
 
             />
 

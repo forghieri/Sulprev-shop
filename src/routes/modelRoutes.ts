@@ -6,4 +6,7 @@ export type ModelsRoutes = {
   AllSales: undefined;
   Shop: { selectedItem?: Item };
   NewItem: undefined;
+  Funeraria: undefined;
+  Planos: undefined;
+  Parque: undefined;
 };

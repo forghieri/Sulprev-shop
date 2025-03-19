@@ -34,6 +34,9 @@
         "projectId": "021bdadf-7346-4ca1-9c51-1971437b84d8"
       }
     },
-    "owner": "forghieri"
+    "owner": "forghieri",
+    "plugins": [
+      "expo-sqlite"
+    ]
   }
 }

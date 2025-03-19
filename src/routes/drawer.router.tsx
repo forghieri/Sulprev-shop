@@ -7,6 +7,9 @@ import AllSales from "../screens/AllSales";
 import Shop from "../screens/Shop";
 import NewItem from "../screens/NewItem";
 import Home from "../screens/Home";
+import Funeraria from "../screens/Funeraria";
+import Planos from "../screens/Planos";
+import Parque from "../screens/Parque";
 
 const Drawer = createDrawerNavigator<ModelsRoutes>();
 
@@ -22,6 +25,60 @@ export default function DrawerRoutes() {
             <Feather name="home" color={color} size={size} />
           ),
           drawerLabel: "Início",
+          headerRight: () => (
+            <Feather
+              name="shopping-cart"
+              size={24}
+              color="green"
+              style={{ marginRight: 15 }}
+              onPress={() => navigation.navigate("Shop", { selectedItem: undefined })}
+            />
+          ),
+        })}
+      />
+
+      {/* Tela Funeraria - Oculta do Drawer */}
+      <Drawer.Screen
+        name="Funeraria"
+        component={Funeraria}
+        options={({ navigation }) => ({
+          drawerItemStyle: { display: "none" }, // Oculta do menu lateral
+          headerRight: () => (
+            <Feather
+              name="shopping-cart"
+              size={24}
+              color="green"
+              style={{ marginRight: 15 }}
+              onPress={() => navigation.navigate("Shop", { selectedItem: undefined })}
+            />
+          ),
+        })}
+      />
+
+      {/* Tela Planos - Oculta do Drawer */}
+      <Drawer.Screen
+        name="Planos"
+        component={Planos}
+        options={({ navigation }) => ({
+          drawerItemStyle: { display: "none" }, // Oculta do menu lateral
+          headerRight: () => (
+            <Feather
+              name="shopping-cart"
+              size={24}
+              color="green"
+              style={{ marginRight: 15 }}
+              onPress={() => navigation.navigate("Shop", { selectedItem: undefined })}
+            />
+          ),
+        })}
+      />
+
+      {/* Tela Parque - Oculta do Drawer */}
+      <Drawer.Screen
+        name="Parque"
+        component={Parque}
+        options={({ navigation }) => ({
+          drawerItemStyle: { display: "none" }, // Oculta do menu lateral
           headerRight: () => (
             <Feather
               name="shopping-cart"

@@ -215,20 +215,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quantityBox: {
-    fontSize: 18,
+    fontSize: 18, // Tamanho maior
     fontWeight: "bold",
-    color: "#D81B60",
-    backgroundColor: "#E3F2FD",
+    color: "#D81B60", // Rosa escuro para destacar
+    backgroundColor: "#E3F2FD", // Azul claro (#E3F2FD)
     borderRadius: 5,
     paddingVertical: 2,
     paddingHorizontal: 6,
     marginRight: 5,
     textAlign: "center",
-    minWidth: 30,
+    minWidth: 30, // Garante um tamanho quadrado mínimo
   },
   saleItemName: {
-    fontSize: 18, // Aumentado de 16 para 18
-    fontWeight: "bold", // Aplicado negrito
+    fontSize: 16,
     color: "#333",
     textAlign: "left",
   },
