@@ -14,8 +14,7 @@ export const initializeDatabase = (db: SQLiteDatabase): void => {
         targetScreen TEXT,
         category TEXT
       );
-      DROP TABLE IF EXISTS orders;
-      CREATE TABLE orders (
+      CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customerName TEXT,
         cpf TEXT,
@@ -40,6 +39,7 @@ export const initializeDatabase = (db: SQLiteDatabase): void => {
         planPrices TEXT,
         category TEXT
       );
+      
     `);
     console.log("Tabelas 'items', 'orders' e 'products' criadas ou já existentes.");
   } catch (error) {

@@ -73,6 +73,34 @@ export const getProductsByTargetScreen = (
   }
 };
 
+// Em itemRepository.ts ou onde getAllOrders é definido
+export const getAllOrders = (db) => {
+  console.log("Buscando todas as vendas no banco de dados...");
+  const rows = db.getAllSync("SELECT * FROM orders ORDER BY createdAt DESC");
+  console.log("Linhas brutas retornadas do banco:", rows);
+
+  const processedSales = rows.map((row) => {
+    let items = [];
+    if (row.cartItems) {
+      try {
+        items = JSON.parse(row.cartItems); // Garante que items seja um array plano
+      } catch (error) {
+        console.error("Erro ao parsear cartItems:", error);
+      }
+    }
+    console.log("Convertendo row para Sale:", { row, items });
+    return {
+      id: row.id.toString(),
+      date: row.createdAt,
+      items, // Não deve ser [items], apenas items
+      total: row.total,
+    };
+  });
+
+  console.log("Vendas processadas:", processedSales);
+  return processedSales;
+};
+
 export const updateProduct = (
   database: SQLiteDatabase,
   id: string,
@@ -145,7 +173,7 @@ export const getProductById = (
 };
 
 export const saveOrder = (
-  database: SQLiteDatabase,
+  db: SQLite.SQLiteDatabase,
   customerName: string,
   cpf: string,
   cep: string,
@@ -154,23 +182,31 @@ export const saveOrder = (
   neighborhood: string,
   city: string,
   state: string,
-  cartItems: CartItem[],
+  cartItems: any, // Deve ser o array de itens
   total: number
-): void => {
-  try {
-    if (!database) {
-      throw new Error("Banco de dados não fornecido ou não inicializado.");
-    }
-    console.log("Testando inserção simples...");
-    database.runSync(
-      `INSERT INTO orders (customerName, cpf, cep, total) VALUES (?, ?, ?, ?)`,
-      [customerName, cpf, cep, total]
-    );
-    console.log("Inserção simples realizada com sucesso.");
+) => {
+  const createdAt = new Date().toISOString();
+  const cartItemsJson = JSON.stringify(cartItems);
 
+  console.log("Executando inserção no banco com:", {
+    customerName,
+    cpf,
+    cep,
+    address,
+    number,
+    neighborhood,
+    city,
+    state,
+    cartItemsJson,
+    total,
+    createdAt,
+  });
 
-    const cartItemsJson = JSON.stringify(cartItems);
-    console.log("Salvando pedido completo com dados:", {
+  db.runSync(
+    `INSERT INTO orders (
+      customerName, cpf, cep, address, number, neighborhood, city, state, cartItems, total, createdAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
       customerName,
       cpf,
       cep,
@@ -181,27 +217,9 @@ export const saveOrder = (
       state,
       cartItemsJson,
       total,
-    });
-    database.runSync(
-      `INSERT INTO orders (customerName, cpf, cep, address, number, neighborhood, city, state, cartItems, total) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        customerName,
-        cpf,
-        cep,
-        address,
-        number,
-        neighborhood || "Não informado",
-        city,
-        state,
-        cartItemsJson,
-        total,
-      ]
-    );
-    console.log("Pedido completo salvo com sucesso no banco.");
+      createdAt,
+    ]
+  );
 
-  } catch (error) {
-    console.error("Erro ao executar runSync:", error);
-    throw error;
-  }
+  console.log("Inserção concluída.");
 };
