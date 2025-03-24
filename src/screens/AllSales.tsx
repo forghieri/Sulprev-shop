@@ -179,19 +179,28 @@ export default function AllSales() {
               {selectedSale && (
                 <>
                   <Text style={styles.modalSectionTitle}>Informações do Cliente</Text>
-                  <Text style={styles.modalDetail}>Nome: {selectedSale.customerName}</Text>
-                  <Text style={styles.modalDetail}>CPF: {selectedSale.cpf}</Text>
-                  <Text style={styles.modalDetail}>CEP: {selectedSale.cep}</Text>
                   <Text style={styles.modalDetail}>
-                    Endereço: {selectedSale.address}, {selectedSale.number}
+                    <Text style={styles.labelBold}>Nome:</Text> {selectedSale.customerName}
                   </Text>
-                  <Text style={styles.modalDetail}>Bairro: {selectedSale.neighborhood}</Text>
                   <Text style={styles.modalDetail}>
-                    Cidade: {selectedSale.city} - {selectedSale.state}
+                    <Text style={styles.labelBold}>CPF:</Text> {selectedSale.cpf}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.labelBold}>CEP:</Text> {selectedSale.cep}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.labelBold}>Endereço:</Text> {selectedSale.address}, {selectedSale.number}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.labelBold}>Bairro:</Text> {selectedSale.neighborhood}
+                  </Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.labelBold}>Cidade:</Text> {selectedSale.city} - {selectedSale.state}
                   </Text>
                   <Text style={styles.modalSectionTitle}>Resumo da Venda</Text>
                   <Text style={styles.modalDetail}>
-                    Data: {new Date(selectedSale.date).toLocaleString("pt-BR", {
+                    <Text style={styles.labelBold}>Data:</Text>{" "}
+                    {new Date(selectedSale.date).toLocaleString("pt-BR", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",
@@ -200,7 +209,15 @@ export default function AllSales() {
                     })}
                   </Text>
                   <Text style={styles.modalDetail}>
-                    Total: R$ {selectedSale.total.toFixed(2).replace(".", ",")}
+                    <Text style={styles.labelBold}>Forma de Pagamento:</Text> {selectedSale.paymentTypeName}
+                  </Text>
+                  {selectedSale.installments && (
+                    <Text style={styles.modalDetail}>
+                      <Text style={styles.labelBold}>Parcelas:</Text> {selectedSale.installments}x
+                    </Text>
+                  )}
+                  <Text style={styles.modalDetail}>
+                    <Text style={styles.labelBold}>Total:</Text> R$ {selectedSale.total.toFixed(2).replace(".", ",")}
                   </Text>
                 </>
               )}
@@ -348,6 +365,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginBottom: 8,
+  },
+  labelBold: {
+    fontWeight: "bold",
   },
   closeButton: {
     backgroundColor: "#007BFF",

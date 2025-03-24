@@ -1,7 +1,25 @@
 import { SQLiteDatabase } from "expo-sqlite";
 import { Item } from "../models/Item";
-import { ProductRow } from "./types";
+import { ProductRow, Sale, SaleItem } from "./types";
 import { CartItem } from "../routes/modelRoutes";
+
+// Interface ajustada para incluir paymentTypeName e installments
+interface OrderRow {
+  id: number;
+  date: string; // Alias para createdAt
+  items: string; // Alias para cartItems
+  total: number;
+  paymentTypeName: string; // Nome do tipo de pagamento
+  installments: number | null; // Quantidade de parcelas
+  customerName: string;
+  cpf: string;
+  cep: string;
+  address: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+}
 
 const toItem = (row: ProductRow): Item => ({
   id: row.id_product.toString(),
@@ -71,34 +89,6 @@ export const getProductsByTargetScreen = (
     console.error("Erro ao buscar produtos:", error);
     throw error;
   }
-};
-
-// Em itemRepository.ts ou onde getAllOrders é definido
-export const getAllOrders = (db) => {
-  console.log("Buscando todas as vendas no banco de dados...");
-  const rows = db.getAllSync("SELECT * FROM orders ORDER BY createdAt DESC");
-  console.log("Linhas brutas retornadas do banco:", rows);
-
-  const processedSales = rows.map((row) => {
-    let items = [];
-    if (row.cartItems) {
-      try {
-        items = JSON.parse(row.cartItems); // Garante que items seja um array plano
-      } catch (error) {
-        console.error("Erro ao parsear cartItems:", error);
-      }
-    }
-    console.log("Convertendo row para Sale:", { row, items });
-    return {
-      id: row.id.toString(),
-      date: row.createdAt,
-      items, // Não deve ser [items], apenas items
-      total: row.total,
-    };
-  });
-
-  console.log("Vendas processadas:", processedSales);
-  return processedSales;
 };
 
 export const updateProduct = (
@@ -172,8 +162,8 @@ export const getProductById = (
   }
 };
 
-export const saveOrder = (
-  db: SQLite.SQLiteDatabase,
+export const getOrCreateUser = (
+  db: SQLiteDatabase,
   customerName: string,
   cpf: string,
   cep: string,
@@ -181,45 +171,121 @@ export const saveOrder = (
   number: string,
   neighborhood: string,
   city: string,
-  state: string,
-  cartItems: any, // Deve ser o array de itens
+  state: string
+): number => {
+  console.log("Verificando/inserindo usuário com CPF:", cpf);
+  let userId = db.getFirstSync("SELECT id FROM users WHERE cpf = ?", [cpf])?.id;
+
+  if (!userId) {
+    const result = db.runSync(
+      `INSERT INTO users (customerName, cpf, cep, address, number, neighborhood, city, state) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [customerName, cpf, cep, address, number, neighborhood, city, state]
+    );
+    userId = result.lastInsertRowId;
+    console.log("Usuário inserido com ID:", userId);
+  } else {
+    console.log("Usuário existente encontrado com ID:", userId);
+  }
+
+  return userId;
+};
+
+export const getOrCreatePaymentTypeId = (
+  db: SQLiteDatabase,
+  userId: number,
+  paymentTypeName: string
+): number => {
+  console.log(`Verificando/inserindo tipo de pagamento '${paymentTypeName}' para userId: ${userId}`);
+  let paymentTypeId = db.getFirstSync<{ id: number }>(
+    "SELECT id FROM payment_types WHERE userId = ? AND name = ?",
+    [userId, paymentTypeName]
+  )?.id;
+
+  if (!paymentTypeId) {
+    const result = db.runSync(
+      `INSERT INTO payment_types (userId, name) VALUES (?, ?)`,
+      [userId, paymentTypeName]
+    );
+    paymentTypeId = result.lastInsertRowId;
+    console.log(`Tipo de pagamento '${paymentTypeName}' inserido com ID: ${paymentTypeId}`);
+  } else {
+    console.log(`Tipo de pagamento '${paymentTypeName}' existente encontrado com ID: ${paymentTypeId}`);
+  }
+
+  return paymentTypeId;
+};
+
+export const saveOrder = (
+  db: SQLiteDatabase,
+  userId: number,
+  paymentTypeName: string,
+  installments: number | null,
+  cartItems: any,
   total: number
 ) => {
   const createdAt = new Date().toISOString();
   const cartItemsJson = JSON.stringify(cartItems);
+  const paymentTypeId = getOrCreatePaymentTypeId(db, userId, paymentTypeName);
 
   console.log("Executando inserção no banco com:", {
-    customerName,
-    cpf,
-    cep,
-    address,
-    number,
-    neighborhood,
-    city,
-    state,
+    userId,
+    paymentTypeId,
+    installments,
     cartItemsJson,
     total,
     createdAt,
   });
 
   db.runSync(
-    `INSERT INTO orders (
-      customerName, cpf, cep, address, number, neighborhood, city, state, cartItems, total, createdAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      customerName,
-      cpf,
-      cep,
-      address,
-      number,
-      neighborhood,
-      city,
-      state,
-      cartItemsJson,
-      total,
-      createdAt,
-    ]
+    `INSERT INTO orders (userId, paymentTypeId, installments, cartItems, total, createdAt) 
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, paymentTypeId, installments, cartItemsJson, total, createdAt]
   );
 
   console.log("Inserção concluída.");
+};
+
+export const getAllOrders = (db: SQLiteDatabase): Sale[] => {
+  console.log("Buscando todas as ordens...");
+  const results = db.getAllSync<OrderRow>(
+    `SELECT 
+      o.id, 
+      o.createdAt AS date, 
+      o.cartItems AS items, 
+      o.total, 
+      pt.name AS paymentTypeName, 
+      o.installments,
+      u.customerName, 
+      u.cpf, 
+      u.cep, 
+      u.address, 
+      u.number, 
+      u.neighborhood, 
+      u.city, 
+      u.state 
+    FROM orders o
+    LEFT JOIN users u ON o.userId = u.id
+    LEFT JOIN payment_types pt ON o.paymentTypeId = pt.id
+    ORDER BY o.createdAt DESC`
+  );
+
+  console.log("Resultados brutos do banco:", results);
+
+  return results.map((row) => ({
+    id: row.id.toString(),
+    date: row.date,
+    items: row.items ? JSON.parse(row.items) : [],
+    total: row.total,
+    paymentTypeName: row.paymentTypeName,
+    installments: row.installments,
+    customerName: row.customerName,
+    cpf: row.cpf,
+    cep: row.cep,
+    address: row.address,
+    number: row.number,
+    neighborhood: row.neighborhood,
+    city: row.city,
+    state: row.state,
+  }));
 };
