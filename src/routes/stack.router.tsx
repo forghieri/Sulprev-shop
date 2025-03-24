@@ -8,6 +8,7 @@ import Home from "../screens/Home";
 import Funeraria from "../screens/Funeraria";
 import Planos from "../screens/Planos";
 import Parque from "../screens/Parque";
+import Checkout from "../screens/Checkout";
 
 
 const Stack = createNativeStackNavigator();
@@ -50,6 +51,12 @@ export default function StackRoutes() {
                 component={Funeraria}
 
             />
+            <Stack.Screen
+                name="Checkout"
+                component={Checkout}
+
+            />
+
 
         </Stack.Navigator>
     )

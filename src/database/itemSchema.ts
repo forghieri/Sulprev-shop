@@ -1,24 +1,49 @@
-// src/database/productSchema.ts
-import { type SQLiteDatabase } from "expo-sqlite";
+import { SQLiteDatabase } from "expo-sqlite";
 
-export const initializeDatabase = async (database: SQLiteDatabase): Promise<void> => {
+export const initializeDatabase = (db: SQLiteDatabase): void => {
   try {
-    await database.execAsync(`
+    console.log("Executando criação das tabelas...");
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS items (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        quantity INTEGER,
+        price TEXT,
+        description TEXT,
+        images TEXT,
+        targetScreen TEXT,
+        category TEXT
+      );
+      DROP TABLE IF EXISTS orders;
+      CREATE TABLE orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customerName TEXT,
+        cpf TEXT,
+        cep TEXT,
+        address TEXT,
+        number TEXT,
+        neighborhood TEXT,
+        city TEXT,
+        state TEXT,
+        cartItems TEXT,
+        total REAL,
+        createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+      );
       CREATE TABLE IF NOT EXISTS products (
         id_product INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
+        name TEXT,
+        quantity INTEGER,
         price TEXT,
-        description TEXT NOT NULL,
-        image TEXT NOT NULL,
-        targetScreen TEXT NOT NULL,
+        description TEXT,
+        image TEXT,
+        targetScreen TEXT,
         planPrices TEXT,
-        category TEXT NOT NULL
+        category TEXT
       );
     `);
-    console.log("Tabela 'products' criada ou já existe");
+    console.log("Tabelas 'items', 'orders' e 'products' criadas ou já existentes.");
   } catch (error) {
-    console.error("Erro ao inicializar o banco de dados:", error);
+    console.error("Erro ao inicializar tabelas:", error);
     throw error;
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useCallback } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,12 @@ import {
 import { SvgXml } from "react-native-svg";
 import { RouteProp, useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ModelsRoutes } from "../routes/modelRoutes"; // Ajuste o caminho
-import { Item } from "../models/Item"; // Ajuste o caminho
-import { formatPrice } from "../utils/formatPrice"; // Ajuste o caminho
-import { sendOrder, initPendingOrdersCheck } from "../utils/sendOrder"; // Ajuste o caminho
+import { ModelsRoutes } from "../routes/modelRoutes";
+import { Item } from "../models/Item";
+import { formatPrice } from "../utils/formatPrice";
+import { sendOrder, initPendingOrdersCheck } from "../utils/sendOrder";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { useCart } from "../utils/CartContext"; // Importe o hook do contexto
 
 type ShopRouteProp = RouteProp<ModelsRoutes, "Shop">;
 type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
@@ -24,7 +25,7 @@ type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
 type CartItem = Item & { quantity: number };
 
 const { width } = Dimensions.get("window");
-const ITEM_WIDTH = width * 0.8; // 80% da largura da tela
+const ITEM_WIDTH = width * 0.8;
 
 const trashIcon = `
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -39,26 +40,8 @@ const trashIcon = `
 export default function Shop() {
   const route = useRoute<ShopRouteProp>();
   const navigation = useNavigation<ShopNavigationProp>();
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [selectedPlan] = useState<string>("Bronze"); // Plano padrão fixo como "Bronze"
-
-  const loadCartItems = useCallback(async () => {
-    try {
-      const storedCart = await AsyncStorage.getItem("cart");
-      if (storedCart) {
-        const parsedCart: CartItem[] = JSON.parse(storedCart);
-        const validCartItems = parsedCart.filter(item => item && item.id && item.name && item.images);
-        console.log("Itens carregados do AsyncStorage no Shop:", validCartItems);
-        setCartItems(validCartItems);
-      } else {
-        console.log("Nenhum item encontrado no AsyncStorage.");
-        setCartItems([]);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar carrinho:", error);
-      setCartItems([]);
-    }
-  }, []);
+  const { cartItems, setCartItems, loadCartItems } = useCart(); // Use o contexto
+  const [selectedPlan] = React.useState<string>("Bronze");
 
   useFocusEffect(
     useCallback(() => {
@@ -86,7 +69,7 @@ export default function Shop() {
       });
       navigation.setParams({ selectedItem: undefined });
     }
-  }, [route.params?.selectedItem, navigation]);
+  }, [route.params?.selectedItem, navigation, setCartItems]);
 
   const parsePriceToNumber = (price: string | number | undefined): number => {
     if (!price) return 0;
@@ -162,7 +145,9 @@ export default function Shop() {
       Alert.alert("Carrinho Vazio", "Adicione itens ao carrinho antes de finalizar.");
       return;
     }
-    navigation.navigate("Checkout", { cartItems, total: calculateTotal() });
+    const total = calculateTotal();
+    console.log("Navegando para Checkout com:", { cartItems, total });
+    navigation.navigate("Checkout", { cartItems, total }); // Removido clearCart
   };
 
   const renderCartItem = ({ item }: { item: CartItem }) => {
@@ -252,6 +237,7 @@ export default function Shop() {
   );
 }
 
+// Estilos permanecem os mesmos
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -277,7 +263,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    position: "relative", // Necessário para posicionamento absoluto dos botões
+    position: "relative",
   },
   itemImage: {
     width: 80,
@@ -320,8 +306,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     position: "absolute",
-    bottom: 10, // Posiciona na parte inferior
-    right: 10,  // Posiciona à direita
+    bottom: 10,
+    right: 10,
   },
   quantityButton: {
     width: 25,

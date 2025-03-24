@@ -1,4 +1,3 @@
-// src/routes/index.tsx
 import { NavigationContainer } from "@react-navigation/native";
 import DrawerRoutes from "./drawer.router";
 

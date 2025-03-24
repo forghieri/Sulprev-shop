@@ -1,17 +1,18 @@
-// src/database/init.ts
-import { type SQLiteDatabase } from "expo-sqlite";
+import { SQLiteDatabase } from "expo-sqlite";
 import { getDatabase } from "./db";
 import { initializeDatabase } from "./itemSchema";
 
 let isInitialized = false;
+let dbInstance: SQLiteDatabase | null = null;
 
-export const initDatabase = async (): Promise<SQLiteDatabase> => {
-  if (isInitialized) {
-    return getDatabase();
+export const initDatabase = (): SQLiteDatabase => {
+  console.log("Iniciando inicialização do banco de dados...");
+  if (!isInitialized || !dbInstance) {
+    dbInstance = getDatabase();
+    console.log("Verificando e inicializando tabelas...");
+    initializeDatabase(dbInstance);
+    isInitialized = true;
   }
-
-  const db = await getDatabase();
-  await initializeDatabase(db);
-  isInitialized = true;
-  return db;
+  console.log("Database inicializado com sucesso.");
+  return dbInstance;
 };

@@ -1,4 +1,3 @@
-// src/routes/drawer.router.tsx
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { Feather } from "@expo/vector-icons";
 import { ModelsRoutes } from "./modelRoutes"; // Importação correta do tipo
@@ -10,6 +9,7 @@ import Home from "../screens/Home";
 import Funeraria from "../screens/Funeraria";
 import Planos from "../screens/Planos";
 import Parque from "../screens/Parque";
+import Checkout from "../screens/Checkout"; // Importar Checkout
 
 const Drawer = createDrawerNavigator<ModelsRoutes>();
 
@@ -142,6 +142,15 @@ export default function DrawerRoutes() {
             <Feather name="shopping-cart" color={color} size={size} />
           ),
           drawerLabel: "Carrinho",
+        }}
+      />
+
+      {/* Tela Checkout - Oculta do Drawer */}
+      <Drawer.Screen
+        name="Checkout"
+        component={Checkout}
+        options={{
+          drawerItemStyle: { display: "none" }, // Oculta do menu lateral
         }}
       />
     </Drawer.Navigator>

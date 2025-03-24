@@ -1,4 +1,3 @@
-// src/routes/modelRoutes.ts
 import { Item } from "../models/Item";
 
 export type ModelsRoutes = {
@@ -9,4 +8,5 @@ export type ModelsRoutes = {
   Funeraria: undefined;
   Planos: undefined;
   Parque: undefined;
+  Checkout: { cartItems: Item[]; total: number }; // Já está correto
 };

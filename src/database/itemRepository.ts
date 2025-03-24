@@ -1,7 +1,7 @@
-// src/database/productRepository.ts
-import { type SQLiteDatabase } from "expo-sqlite";
+import { SQLiteDatabase } from "expo-sqlite";
 import { Item } from "../models/Item";
 import { ProductRow } from "./types";
+import { CartItem } from "../routes/modelRoutes";
 
 const toItem = (row: ProductRow): Item => ({
   id: row.id_product.toString(),
@@ -15,12 +15,10 @@ const toItem = (row: ProductRow): Item => ({
   category: row.category,
 });
 
-// Insere um novo produto
-export const insertProduct = async (database: SQLiteDatabase, product: Item): Promise<void> => {
+export const insertProduct = (database: SQLiteDatabase, product: Item): void => {
   try {
-    // Validação explícita dos campos obrigatórios
     if (!product.name || !product.description || !product.images || !product.targetScreen || !product.category) {
-      throw new Error("Um ou mais campos obrigatórios estão ausentes ou inválidos: " + JSON.stringify(product));
+      throw new Error("Campos obrigatórios ausentes: " + JSON.stringify(product));
     }
 
     const values = {
@@ -34,11 +32,10 @@ export const insertProduct = async (database: SQLiteDatabase, product: Item): Pr
       category: product.category,
     };
 
-    console.log("Valores a serem inseridos no banco:", values);
-
-    await database.runAsync(
+    console.log("Inserindo produto com valores:", values);
+    database.runSync(
       `INSERT INTO products (name, quantity, price, description, image, targetScreen, planPrices, category) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         values.name,
         values.quantity,
@@ -50,26 +47,25 @@ export const insertProduct = async (database: SQLiteDatabase, product: Item): Pr
         values.category,
       ]
     );
-    console.log("Produto inserido:", product);
+    console.log("Produto inserido com sucesso:", product);
   } catch (error) {
     console.error("Erro ao inserir produto:", error);
     throw error;
   }
 };
 
-// Busca todos os produtos por targetScreen
-export const getProductsByTargetScreen = async (
+export const getProductsByTargetScreen = (
   database: SQLiteDatabase,
   targetScreen: string
-): Promise<Item[]> => {
+): Item[] => {
   try {
-    console.log("Buscando itens para:", targetScreen);
-    const rows = await database.getAllAsync<ProductRow>(
-      `SELECT * FROM products WHERE targetScreen = ?;`,
+    console.log("Buscando produtos para targetScreen:", targetScreen);
+    const rows = database.getAllSync<ProductRow>(
+      `SELECT * FROM products WHERE targetScreen = ?`,
       [targetScreen]
     );
     const products = rows.map(toItem);
-    console.log(`Produtos carregados para ${targetScreen}:`, products);
+    console.log(`Produtos encontrados para ${targetScreen}:`, products);
     return products;
   } catch (error) {
     console.error("Erro ao buscar produtos:", error);
@@ -77,15 +73,14 @@ export const getProductsByTargetScreen = async (
   }
 };
 
-// Atualiza um produto existente
-export const updateProduct = async (
+export const updateProduct = (
   database: SQLiteDatabase,
   id: string,
   product: Partial<Item>
-): Promise<void> => {
+): void => {
   try {
-    console.log("Atualizando produto com ID:", id, "Dados:", product);
-    await database.runAsync(
+    console.log("Atualizando produto ID:", id, "com dados:", product);
+    database.runSync(
       `UPDATE products SET 
         name = ?, 
         quantity = ?, 
@@ -95,7 +90,7 @@ export const updateProduct = async (
         targetScreen = ?, 
         planPrices = ?, 
         category = ?
-       WHERE id_product = ?;`,
+       WHERE id_product = ?`,
       [
         product.name || null,
         product.quantity || 0,
@@ -108,38 +103,36 @@ export const updateProduct = async (
         id,
       ]
     );
-    console.log("Produto atualizado:", { id, ...product });
+    console.log("Produto atualizado com sucesso:", { id, ...product });
   } catch (error) {
     console.error("Erro ao atualizar produto:", error);
     throw error;
   }
 };
 
-// Deleta um produto
-export const deleteProduct = async (database: SQLiteDatabase, id: string): Promise<void> => {
+export const deleteProduct = (database: SQLiteDatabase, id: string): void => {
   try {
-    console.log("Deletando produto com ID:", id);
-    await database.runAsync(`DELETE FROM products WHERE id_product = ?;`, [id]);
-    console.log("Produto deletado:", id);
+    console.log("Deletando produto ID:", id);
+    database.runSync(`DELETE FROM products WHERE id_product = ?`, [id]);
+    console.log("Produto deletado com sucesso:", id);
   } catch (error) {
     console.error("Erro ao deletar produto:", error);
     throw error;
   }
 };
 
-// Busca um produto por ID
-export const getProductById = async (
+export const getProductById = (
   database: SQLiteDatabase,
   id: string
-): Promise<Item | null> => {
+): Item | null => {
   try {
-    console.log("Buscando produto com ID:", id);
-    const row = await database.getFirstAsync<ProductRow>(
-      `SELECT * FROM products WHERE id_product = ?;`,
+    console.log("Buscando produto por ID:", id);
+    const row = database.getFirstSync<ProductRow>(
+      `SELECT * FROM products WHERE id_product = ?`,
       [id]
     );
     if (!row) {
-      console.log("Nenhum produto encontrado para o ID:", id);
+      console.log("Produto não encontrado para ID:", id);
       return null;
     }
     const product = toItem(row);
@@ -147,6 +140,68 @@ export const getProductById = async (
     return product;
   } catch (error) {
     console.error("Erro ao buscar produto por ID:", error);
+    throw error;
+  }
+};
+
+export const saveOrder = (
+  database: SQLiteDatabase,
+  customerName: string,
+  cpf: string,
+  cep: string,
+  address: string,
+  number: string,
+  neighborhood: string,
+  city: string,
+  state: string,
+  cartItems: CartItem[],
+  total: number
+): void => {
+  try {
+    if (!database) {
+      throw new Error("Banco de dados não fornecido ou não inicializado.");
+    }
+    console.log("Testando inserção simples...");
+    database.runSync(
+      `INSERT INTO orders (customerName, cpf, cep, total) VALUES (?, ?, ?, ?)`,
+      [customerName, cpf, cep, total]
+    );
+    console.log("Inserção simples realizada com sucesso.");
+
+
+    const cartItemsJson = JSON.stringify(cartItems);
+    console.log("Salvando pedido completo com dados:", {
+      customerName,
+      cpf,
+      cep,
+      address,
+      number,
+      neighborhood,
+      city,
+      state,
+      cartItemsJson,
+      total,
+    });
+    database.runSync(
+      `INSERT INTO orders (customerName, cpf, cep, address, number, neighborhood, city, state, cartItems, total) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        customerName,
+        cpf,
+        cep,
+        address,
+        number,
+        neighborhood || "Não informado",
+        city,
+        state,
+        cartItemsJson,
+        total,
+      ]
+    );
+    console.log("Pedido completo salvo com sucesso no banco.");
+
+  } catch (error) {
+    console.error("Erro ao executar runSync:", error);
     throw error;
   }
 };
