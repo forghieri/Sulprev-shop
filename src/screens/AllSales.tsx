@@ -65,6 +65,23 @@ export default function AllSales() {
     return filtered;
   }, [sales, filter]);
 
+  const parsePriceToNumber = (price: string): number => {
+    const cleanedPrice = price
+      .replace(/R\$\s*/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .trim();
+    return parseFloat(cleanedPrice) || 0;
+  };
+
+  const getItemPrice = (saleItem: SaleItem): string => {
+    if (saleItem.selectedPlan && saleItem.planPrices) {
+      const price = saleItem.planPrices[saleItem.selectedPlan as keyof typeof saleItem.planPrices];
+      return price || "Preço indisponível";
+    }
+    return saleItem.price || "Preço indisponível";
+  };
+
   const renderSaleItem = ({ item }: { item: Sale }) => {
     console.log("Renderizando venda:", item);
     return (
@@ -86,16 +103,23 @@ export default function AllSales() {
         </Text>
         {item.items.map((saleItem, index) => {
           console.log("Renderizando item da venda:", saleItem);
-          const displayPrice =
-            saleItem.price ||
-            (saleItem.planPrices ? Object.values(saleItem.planPrices)[0] : "Não disponível");
+          const unitPrice = getItemPrice(saleItem);
+          const unitPriceNumber = parsePriceToNumber(unitPrice);
+          const subtotal = unitPriceNumber * saleItem.quantity;
           return (
             <View key={`${saleItem.id}-${index}`} style={styles.itemContainer}>
               <View style={styles.nameContainer}>
                 <Text style={styles.quantityBox}>{saleItem.quantity}x</Text>
                 <Text style={styles.saleItemName}>{saleItem.name}</Text>
               </View>
-              <Text style={styles.saleItemPrice}>{formatPrice(displayPrice)}</Text>
+              <View style={styles.priceContainer}>
+                <Text style={styles.saleItemPrice}>
+                  Unitário: {formatPrice(unitPrice)}
+                </Text>
+                <Text style={styles.saleItemSubtotal}>
+                  Subtotal: {formatPrice(subtotal.toString())}
+                </Text>
+              </View>
             </View>
           );
         })}
@@ -292,6 +316,10 @@ const styles = StyleSheet.create({
   nameContainer: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+  },
+  priceContainer: {
+    alignItems: "flex-end",
   },
   quantityBox: {
     fontSize: 18,
@@ -311,9 +339,14 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   saleItemPrice: {
-    fontSize: 18,
+    fontSize: 14,
+    color: "#666",
+    textAlign: "right",
+  },
+  saleItemSubtotal: {
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#000",
+    color: "black",
     textAlign: "right",
   },
   saleTotal: {

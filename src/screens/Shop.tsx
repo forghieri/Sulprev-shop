@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,12 +17,12 @@ import { Item } from "../models/Item";
 import { formatPrice } from "../utils/formatPrice";
 import { sendOrder, initPendingOrdersCheck } from "../utils/sendOrder";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
-import { useCart } from "../utils/CartContext"; // Importe o hook do contexto
+import { useCart } from "../utils/CartContext";
 
 type ShopRouteProp = RouteProp<ModelsRoutes, "Shop">;
 type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
 
-type CartItem = Item & { quantity: number };
+type CartItem = Item & { quantity: number; selectedPlan?: string };
 
 const { width } = Dimensions.get("window");
 const ITEM_WIDTH = width * 0.8;
@@ -37,47 +37,155 @@ const trashIcon = `
   </svg>
 `;
 
+const CartItemComponent = React.memo(({ item, onRemove, onIncrease, onDecrease }: {
+  item: CartItem;
+  onRemove: (id: string, selectedPlan?: string) => void;
+  onIncrease: (id: string, selectedPlan?: string) => void;
+  onDecrease: (id: string, selectedPlan?: string) => void;
+}) => {
+  console.log(`Renderizando item no carrinho: ${item.name}`);
+  if (!item || !item.id) return <Text>Item inválido</Text>;
+
+  const itemPrice = item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)
+    ? item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível"
+    : item.price || "Preço indisponível";
+  
+  const parsePriceToNumber = (price: string): number => {
+    const cleanedPrice = price.replace(/R\$\s*/g, "").replace(/\s/g, "").trim();
+    const parsed = parseFloat(
+      cleanedPrice.includes(".") && cleanedPrice.includes(",")
+        ? cleanedPrice.replace(/\./g, "").replace(",", ".")
+        : cleanedPrice.replace(",", ".")
+    );
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const subtotalValue = parsePriceToNumber(itemPrice) * item.quantity;
+  const formattedSubtotal = formatPrice(subtotalValue);
+
+  return (
+    <View style={styles.cartItem}>
+      <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
+      <View style={styles.itemDetails}>
+        <View style={styles.headerContainer}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          <TouchableOpacity
+            style={styles.trashButton}
+            onPress={() =>
+              Alert.alert(
+                "Remover",
+                `Deseja remover ${item.name} (${item.selectedPlan || "Sem plano"}) do carrinho?`,
+                [
+                  { text: "Cancelar" },
+                  { text: "Sim", onPress: () => onRemove(item.id, item.selectedPlan) },
+                ]
+              )
+            }
+          >
+            <SvgXml xml={trashIcon} width={24} height={24} />
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.itemPrice}>
+          Und. ({item.selectedPlan || "Padrão"}): {itemPrice}
+        </Text>
+        <Text style={styles.itemSubtotal}>Subtotal: {formattedSubtotal}</Text>
+        <Text style={styles.itemTag}>Origem: {item.targetScreen || "Desconhecida"}</Text>
+        {item.selectedPlan && (
+          <Text style={styles.itemTag}>Plano: {item.selectedPlan}</Text>
+        )}
+        <View style={styles.quantityContainer}>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => onDecrease(item.id, item.selectedPlan)}
+          >
+            <Text style={styles.quantityButtonText}>-</Text>
+          </TouchableOpacity>
+          <Text style={styles.quantityText}>{item.quantity}</Text>
+          <TouchableOpacity
+            style={styles.quantityButton}
+            onPress={() => onIncrease(item.id, item.selectedPlan)}
+          >
+            <Text style={styles.quantityButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.item.id === nextProps.item.id &&
+         prevProps.item.quantity === nextProps.item.quantity &&
+         prevProps.item.selectedPlan === nextProps.item.selectedPlan;
+});
+
 export default function Shop() {
   const route = useRoute<ShopRouteProp>();
   const navigation = useNavigation<ShopNavigationProp>();
-  const { cartItems, setCartItems, loadCartItems } = useCart(); // Use o contexto
-  const [selectedPlan] = React.useState<string>("Bronze");
+  const { cartItems, setCartItems, loadCartItems } = useCart();
+  const hasLoadedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
-      loadCartItems();
-      initPendingOrdersCheck();
+      if (hasLoadedRef.current) {
+        console.log("Tela já foi carregada anteriormente, ignorando");
+        return;
+      }
+      console.log("Tela focada: carregando carrinho e verificando pedidos pendentes");
+      hasLoadedRef.current = true;
+
+      loadCartItems()
+        .then(() => console.log("loadCartItems concluído"))
+        .catch((err) => console.error("Erro em loadCartItems:", err));
+
+      const pendingOrdersCheck = initPendingOrdersCheck();
+      if (pendingOrdersCheck && typeof pendingOrdersCheck.then === "function") {
+        pendingOrdersCheck
+          .then(() => console.log("initPendingOrdersCheck concluído"))
+          .catch((err) => console.error("Erro em initPendingOrdersCheck:", err));
+      } else {
+        console.log("initPendingOrdersCheck não é assíncrono, executado diretamente");
+      }
+
+      return () => {
+        console.log("Tela desfocada");
+      };
     }, [loadCartItems])
   );
 
+  useEffect(() => {
+    console.log("cartItems mudou:", JSON.stringify(cartItems));
+  }, [cartItems]);
+
   React.useEffect(() => {
-    if (route.params?.selectedItem) {
-      console.log("Item recebido no Shop via params:", route.params.selectedItem);
-      const newItem = { ...route.params.selectedItem, quantity: 1 };
-      setCartItems((prevItems) => {
-        const existingItemIndex = prevItems.findIndex((item) => item.id === newItem.id);
-        let updatedItems = [...prevItems];
-        if (existingItemIndex >= 0) {
-          updatedItems[existingItemIndex].quantity += 1;
-        } else {
-          updatedItems = [...prevItems, newItem];
-        }
+    const { selectedItem, selectedPlan } = route.params || {};
+    if (!selectedItem || !selectedPlan) return;
+
+    console.log(`Adicionando novo item: ${selectedItem.name}`);
+    const newItem: CartItem = { ...selectedItem, quantity: 1, selectedPlan };
+    setCartItems((prevItems) => {
+      const existingItemIndex = prevItems.findIndex(
+        (item) => item.id === newItem.id && item.selectedPlan === newItem.selectedPlan
+      );
+      if (existingItemIndex >= 0) {
+        const updatedItems = [...prevItems];
+        updatedItems[existingItemIndex].quantity += 1;
         AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
           console.error("Erro ao salvar carrinho:", error)
         );
         return updatedItems;
-      });
-      navigation.setParams({ selectedItem: undefined });
-    }
-  }, [route.params?.selectedItem, navigation, setCartItems]);
+      }
+      const updatedItems = [...prevItems, newItem];
+      AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
+        console.error("Erro ao salvar carrinho:", error)
+      );
+      return updatedItems;
+    });
+    navigation.setParams({ selectedItem: undefined, selectedPlan: undefined });
+  }, [route.params?.selectedItem, route.params?.selectedPlan, navigation, setCartItems]);
 
   const parsePriceToNumber = (price: string | number | undefined): number => {
     if (!price) return 0;
     if (typeof price === "number") return isNaN(price) ? 0 : price;
-    const cleanedPrice = price
-      .replace(/R\$\s*/g, "")
-      .replace(/\s/g, "")
-      .trim();
+    const cleanedPrice = price.replace(/R\$\s*/g, "").replace(/\s/g, "").trim();
     const parsed = parseFloat(
       cleanedPrice.includes(".") && cleanedPrice.includes(",")
         ? cleanedPrice.replace(/\./g, "").replace(",", ".")
@@ -87,29 +195,25 @@ export default function Shop() {
   };
 
   const getItemPrice = (item: CartItem): string => {
-    if (item.targetScreen === "Parque" && item.planPrices && selectedPlan) {
-      const planPrice = item.planPrices[selectedPlan as keyof typeof item.planPrices];
-      console.log(`Preço do plano ${selectedPlan} para ${item.name}:`, planPrice);
-      return planPrice || "Preço indisponível";
+    if (item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)) {
+      return item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível";
     }
-    console.log(`Preço padrão para ${item.name}:`, item.price);
     return item.price || "Preço indisponível";
   };
 
-  const calculateTotal = () => {
-    const total = cartItems.reduce((sum, item) => {
+  const calculateTotal = useMemo(() => {
+    return cartItems.reduce((sum, item) => {
       const price = parsePriceToNumber(getItemPrice(item));
-      const subtotal = price * item.quantity;
-      return sum + subtotal;
+      return sum + price * item.quantity;
     }, 0);
-    console.log("Total calculado:", total);
-    return total;
-  };
+  }, [cartItems]);
 
-  const increaseQuantity = (itemId: string) => {
+  const increaseQuantity = (itemId: string, selectedPlan?: string) => {
     setCartItems((prevItems) => {
       const updatedItems = prevItems.map((item) =>
-        item.id === itemId ? { ...item, quantity: item.quantity + 1 } : item
+        item.id === itemId && item.selectedPlan === selectedPlan
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
       );
       AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
         console.error("Erro ao salvar carrinho:", error)
@@ -118,10 +222,12 @@ export default function Shop() {
     });
   };
 
-  const decreaseQuantity = (itemId: string) => {
+  const decreaseQuantity = (itemId: string, selectedPlan?: string) => {
     setCartItems((prevItems) => {
       const updatedItems = prevItems.map((item) =>
-        item.id === itemId && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
+        item.id === itemId && item.selectedPlan === selectedPlan && item.quantity > 1
+          ? { ...item, quantity: item.quantity - 1 }
+          : item
       );
       AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
         console.error("Erro ao salvar carrinho:", error)
@@ -130,9 +236,11 @@ export default function Shop() {
     });
   };
 
-  const removeItem = (itemId: string) => {
+  const removeItem = (itemId: string, selectedPlan?: string) => {
     setCartItems((prevItems) => {
-      const updatedItems = prevItems.filter((item) => item.id !== itemId);
+      const updatedItems = prevItems.filter(
+        (item) => !(item.id === itemId && item.selectedPlan === selectedPlan)
+      );
       AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
         console.error("Erro ao salvar carrinho:", error)
       );
@@ -145,69 +253,10 @@ export default function Shop() {
       Alert.alert("Carrinho Vazio", "Adicione itens ao carrinho antes de finalizar.");
       return;
     }
-    const total = calculateTotal();
-    console.log("Navegando para Checkout com:", { cartItems, total });
-    navigation.navigate("Checkout", { cartItems, total }); // Removido clearCart
+    navigation.navigate("Checkout", { cartItems, total: calculateTotal });
   };
 
-  const renderCartItem = ({ item }: { item: CartItem }) => {
-    console.log("Renderizando item no carrinho:", item);
-    if (!item || !item.id) {
-      console.warn("Item inválido encontrado:", item);
-      return <Text>Item inválido</Text>;
-    }
-
-    const itemPrice = getItemPrice(item);
-    const subtotalValue = parsePriceToNumber(itemPrice) * item.quantity;
-    const formattedSubtotal = formatPrice(subtotalValue);
-
-    return (
-      <View style={styles.cartItem}>
-        <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
-        <View style={styles.itemDetails}>
-          <View style={styles.headerContainer}>
-            <Text style={styles.itemName}>{item.name}</Text>
-            <TouchableOpacity
-              style={styles.trashButton}
-              onPress={() =>
-                Alert.alert(
-                  "Remover",
-                  `Deseja remover ${item.name} do carrinho?`,
-                  [
-                    { text: "Cancelar" },
-                    { text: "Sim", onPress: () => removeItem(item.id) },
-                  ]
-                )
-              }
-            >
-              <SvgXml xml={trashIcon} width={24} height={24} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.itemPrice}>Und.{itemPrice}</Text>
-          <Text style={styles.itemSubtotal}>Subtotal: {formattedSubtotal}</Text>
-          <Text style={styles.itemTag}>Origem: {item.targetScreen || "Desconhecida"}</Text>
-          <View style={styles.quantityContainer}>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={() => decreaseQuantity(item.id)}
-            >
-              <Text style={styles.quantityButtonText}>-</Text>
-            </TouchableOpacity>
-            <Text style={styles.quantityText}>{item.quantity}</Text>
-            <TouchableOpacity
-              style={styles.quantityButton}
-              onPress={() => increaseQuantity(item.id)}
-            >
-              <Text style={styles.quantityButtonText}>+</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  };
-
-  const total = calculateTotal();
-  const formattedTotal = formatPrice(total);
+  const formattedTotal = formatPrice(calculateTotal);
 
   return (
     <View style={styles.container}>
@@ -216,16 +265,20 @@ export default function Shop() {
         <>
           <FlatList
             data={cartItems}
-            keyExtractor={(item) => item.id || Math.random().toString()}
-            renderItem={renderCartItem}
+            keyExtractor={(item) => `${item.id}-${item.selectedPlan || "no-plan"}`}
+            renderItem={({ item }) => (
+              <CartItemComponent
+                item={item}
+                onRemove={removeItem}
+                onIncrease={increaseQuantity}
+                onDecrease={decreaseQuantity}
+              />
+            )}
             showsVerticalScrollIndicator={false}
           />
           <View style={styles.totalContainer}>
             <Text style={styles.totalText}>Total: {formattedTotal}</Text>
-            <TouchableOpacity
-              style={styles.checkoutButton}
-              onPress={handleCheckout}
-            >
+            <TouchableOpacity style={styles.checkoutButton} onPress={handleCheckout}>
               <Text style={styles.checkoutText}>Finalizar</Text>
             </TouchableOpacity>
           </View>
@@ -237,7 +290,6 @@ export default function Shop() {
   );
 }
 
-// Estilos permanecem os mesmos
 const styles = StyleSheet.create({
   container: {
     flex: 1,

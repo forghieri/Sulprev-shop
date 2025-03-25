@@ -1,4 +1,3 @@
-// src/screens/NewItem.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -18,14 +17,22 @@ import { pickImages } from "../utils/imageUtils";
 import CurrencyInput from "react-native-currency-input";
 import styles from "../styles/NewItemStyles";
 import { initDatabase } from "../database/init";
-import { insertProduct } from "../database/itemRepository";
+import { 
+  insertProduct, 
+  insertParqueProduct, 
+  insertPlanosProduct, 
+  updateProduct, 
+  updateParqueProduct, 
+  updatePlanosProduct 
+} from "../database/itemRepository";
 
 type NewItemScreenNavigationProp = DrawerNavigationProp<ModelsRoutes, "NewItem">;
 type NewItemScreenRouteProp = RouteProp<ModelsRoutes, "NewItem">;
 
 const categories = ["Kits", "Caixões", "Coroa de Flores"];
 const targetScreens = ["Parque", "Funeraria", "Planos"];
-const plans = ["Bronze", "Ouro", "Diamante", "Diamante Plus"];
+const parquePlans = ["Bronze", "Ouro", "Diamante", "Diamante Plus"];
+const planosPlans = ["Standard", "Master", "Prime"];
 
 export default function NewItem() {
   const navigation = useNavigation<NewItemScreenNavigationProp>();
@@ -42,24 +49,38 @@ export default function NewItem() {
     itemToEdit?.price ? parseFloat(itemToEdit.price.replace("R$ ", "").replace(".", "").replace(",", ".")) : null
   );
   const [planPrices, setPlanPrices] = useState<{
-    Bronze: number | null;
-    Ouro: number | null;
-    Diamante: number | null;
-    "Diamante Plus": number | null;
+    Bronze?: number | null;
+    Ouro?: number | null;
+    Diamante?: number | null;
+    "Diamante Plus"?: number | null;
+    Standard?: number | null;
+    Master?: number | null;
+    Prime?: number | null;
   }>(
     itemToEdit?.planPrices
       ? {
-          Bronze: parseFloat(itemToEdit.planPrices.Bronze.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          Ouro: parseFloat(itemToEdit.planPrices.Ouro.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          Diamante: parseFloat(itemToEdit.planPrices.Diamante.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          "Diamante Plus": parseFloat(itemToEdit.planPrices["Diamante Plus"].replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          ...(itemToEdit.targetScreen === "Parque"
+            ? {
+                Bronze: parseFloat(itemToEdit.planPrices.Bronze?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+                Ouro: parseFloat(itemToEdit.planPrices.Ouro?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+                Diamante: parseFloat(itemToEdit.planPrices.Diamante?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+                "Diamante Plus": parseFloat(itemToEdit.planPrices["Diamante Plus"]?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+              }
+            : itemToEdit.targetScreen === "Planos"
+            ? {
+                Standard: parseFloat(itemToEdit.planPrices.Standard?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+                Master: parseFloat(itemToEdit.planPrices.Master?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+                Prime: parseFloat(itemToEdit.planPrices.Prime?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+              }
+            : {}),
         }
-      : { Bronze: null, Ouro: null, Diamante: null, "Diamante Plus": null }
+      : { Bronze: null, Ouro: null, Diamante: null, "Diamante Plus": null, Standard: null, Master: null, Prime: null }
   );
   const isEditing = !!itemToEdit && id !== undefined;
 
   useEffect(() => {
     if (itemToEdit) {
+      console.log("Item recebido para edição:", itemToEdit);
       setItemName(itemToEdit.name || "");
       setItemQuantity(itemToEdit.quantity?.toString() || "0");
       setItemCategory(itemToEdit.category || categories[0]);
@@ -68,10 +89,16 @@ export default function NewItem() {
       setTargetScreen(itemToEdit.targetScreen || targetScreens[0]);
       if (itemToEdit.targetScreen === "Parque" && itemToEdit.planPrices) {
         setPlanPrices({
-          Bronze: parseFloat(itemToEdit.planPrices.Bronze.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          Ouro: parseFloat(itemToEdit.planPrices.Ouro.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          Diamante: parseFloat(itemToEdit.planPrices.Diamante.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
-          "Diamante Plus": parseFloat(itemToEdit.planPrices["Diamante Plus"].replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          Bronze: parseFloat(itemToEdit.planPrices.Bronze?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          Ouro: parseFloat(itemToEdit.planPrices.Ouro?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          Diamante: parseFloat(itemToEdit.planPrices.Diamante?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          "Diamante Plus": parseFloat(itemToEdit.planPrices["Diamante Plus"]?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+        });
+      } else if (itemToEdit.targetScreen === "Planos" && itemToEdit.planPrices) {
+        setPlanPrices({
+          Standard: parseFloat(itemToEdit.planPrices.Standard?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          Master: parseFloat(itemToEdit.planPrices.Master?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
+          Prime: parseFloat(itemToEdit.planPrices.Prime?.replace("R$ ", "").replace(".", "").replace(",", ".")) || null,
         });
       } else if (itemToEdit.price) {
         setPriceValue(parseFloat(itemToEdit.price.replace("R$ ", "").replace(".", "").replace(",", ".")) || null);
@@ -97,7 +124,7 @@ export default function NewItem() {
     const quantity = parseInt(itemQuantity) || 0;
     let updatedItem: Item;
 
-    console.log("Dados antes da inserção:", {
+    console.log("Dados antes da inserção/atualização:", {
       itemName,
       itemQuantity,
       itemCategory,
@@ -108,17 +135,27 @@ export default function NewItem() {
       planPrices,
     });
 
+    const db = await initDatabase();
+
     if (targetScreen === "Parque") {
-      if (Object.values(planPrices).some((price) => price === null || price < 0)) {
+      const relevantPlans = parquePlans;
+      const filteredPlanPrices = Object.fromEntries(
+        Object.entries(planPrices).filter(([key]) => relevantPlans.includes(key))
+      );
+      if (Object.values(filteredPlanPrices).some((price) => price === null || price < 0)) {
         Alert.alert("Erro", "Preencha todos os preços para os planos!");
         return;
       }
-      const formattedPlanPrices = {
-        Bronze: planPrices.Bronze!.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }),
-        Ouro: planPrices.Ouro!.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }),
-        Diamante: planPrices.Diamante!.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }),
-        "Diamante Plus": planPrices["Diamante Plus"]!.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }),
-      };
+      const formattedPlanPrices = Object.fromEntries(
+        relevantPlans.map((plan) => [
+          plan,
+          (filteredPlanPrices[plan] as number).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+            minimumFractionDigits: 2,
+          }),
+        ])
+      );
       updatedItem = {
         id: isEditing ? id : Date.now().toString(),
         name: itemName,
@@ -129,12 +166,71 @@ export default function NewItem() {
         targetScreen,
         planPrices: formattedPlanPrices,
       };
+      try {
+        if (isEditing) {
+          console.log("Atualizando item em itensParque:", updatedItem);
+          await updateParqueProduct(db, id, updatedItem);
+        } else {
+          console.log("Inserindo item em itensParque:", updatedItem);
+          await insertParqueProduct(db, updatedItem);
+        }
+        navigation.navigate("Parque" as keyof ModelsRoutes);
+      } catch (error) {
+        console.error("Erro ao salvar item em itensParque:", error);
+        Alert.alert("Erro", "Falha ao salvar o item.");
+      }
+    } else if (targetScreen === "Planos") {
+      const relevantPlans = planosPlans;
+      const filteredPlanPrices = Object.fromEntries(
+        Object.entries(planPrices).filter(([key]) => relevantPlans.includes(key))
+      );
+      if (Object.values(filteredPlanPrices).some((price) => price === null || price < 0)) {
+        Alert.alert("Erro", "Preencha todos os preços para os planos!");
+        return;
+      }
+      const formattedPlanPrices = Object.fromEntries(
+        relevantPlans.map((plan) => [
+          plan,
+          (filteredPlanPrices[plan] as number).toLocaleString("pt-BR", {
+            style: "currency",
+            currency: "BRL",
+            minimumFractionDigits: 2,
+          }),
+        ])
+      );
+      updatedItem = {
+        id: isEditing ? id : Date.now().toString(),
+        name: itemName,
+        quantity,
+        category: itemCategory,
+        description: itemDescription,
+        images,
+        targetScreen,
+        planPrices: formattedPlanPrices,
+      };
+      try {
+        if (isEditing) {
+          console.log("Atualizando item em itensPlanos:", updatedItem);
+          await updatePlanosProduct(db, id, updatedItem);
+        } else {
+          console.log("Inserindo item em itensPlanos:", updatedItem);
+          await insertPlanosProduct(db, updatedItem);
+        }
+        navigation.navigate("Planos" as keyof ModelsRoutes);
+      } catch (error) {
+        console.error("Erro ao salvar item em itensPlanos:", error);
+        Alert.alert("Erro", "Falha ao salvar o item.");
+      }
     } else {
       if (priceValue === null || priceValue < 0) {
         Alert.alert("Erro", "Preencha o preço do item!");
         return;
       }
-      const formattedPrice = priceValue.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+      const formattedPrice = priceValue.toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        minimumFractionDigits: 2,
+      });
       updatedItem = {
         id: isEditing ? id : Date.now().toString(),
         name: itemName,
@@ -145,17 +241,19 @@ export default function NewItem() {
         targetScreen,
         price: formattedPrice,
       };
-    }
-
-    try {
-      console.log("Item a ser inserido:", updatedItem);
-      const db = await initDatabase();
-      await insertProduct(db, updatedItem);
-      navigation.navigate(targetScreen as keyof ModelsRoutes);
-      console.log("Navegando para:", targetScreen);
-    } catch (error) {
-      console.error("Erro ao salvar item:", error);
-      Alert.alert("Erro", "Falha ao salvar o item no banco de dados.");
+      try {
+        if (isEditing) {
+          console.log("Atualizando item em products:", updatedItem);
+          await updateProduct(db, id, updatedItem);
+        } else {
+          console.log("Inserindo item em products:", updatedItem);
+          await insertProduct(db, updatedItem);
+        }
+        navigation.navigate(targetScreen as keyof ModelsRoutes);
+      } catch (error) {
+        console.error("Erro ao salvar item em products:", error);
+        Alert.alert("Erro", "Falha ao salvar o item.");
+      }
     }
 
     if (!isEditing) {
@@ -166,7 +264,7 @@ export default function NewItem() {
       setImages([]);
       setTargetScreen(targetScreens[0]);
       setPriceValue(null);
-      setPlanPrices({ Bronze: null, Ouro: null, Diamante: null, "Diamante Plus": null });
+      setPlanPrices({ Bronze: null, Ouro: null, Diamante: null, "Diamante Plus": null, Standard: null, Master: null, Prime: null });
     }
   };
 
@@ -250,7 +348,28 @@ export default function NewItem() {
         {targetScreen === "Parque" ? (
           <>
             <Text style={styles.label}>Preços por Plano</Text>
-            {plans.map((plan) => (
+            {parquePlans.map((plan) => (
+              <View key={plan} style={{ marginBottom: 15 }}>
+                <Text style={styles.label}>{plan}</Text>
+                <CurrencyInput
+                  style={styles.input}
+                  value={planPrices[plan as keyof typeof planPrices]}
+                  onChangeValue={(value) => setPlanPrices((prev) => ({ ...prev, [plan]: value }))}
+                  prefix="R$ "
+                  delimiter="."
+                  separator=","
+                  precision={2}
+                  placeholder={`Preço para ${plan} (ex.: R$ 100,00)`}
+                  placeholderTextColor="#aaa"
+                  keyboardType="numeric"
+                />
+              </View>
+            ))}
+          </>
+        ) : targetScreen === "Planos" ? (
+          <>
+            <Text style={styles.label}>Preços por Plano</Text>
+            {planosPlans.map((plan) => (
               <View key={plan} style={{ marginBottom: 15 }}>
                 <Text style={styles.label}>{plan}</Text>
                 <CurrencyInput

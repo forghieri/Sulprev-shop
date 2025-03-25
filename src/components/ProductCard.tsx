@@ -33,10 +33,10 @@ interface ProductCardProps {
   selectedPlan?: string;
   onLongPress: (item: Item) => void;
   onChangeItem?: (index: number) => void;
-  onAddToCart?: (item: Item) => void; // Nova prop para chamar handleAddToCart da tela
+  onAddToCart?: (item: Item) => void;
 }
 
-type CartItem = Item & { quantity: number };
+type CartItem = Item & { quantity: number; selectedPlan?: string }; // Adicionado selectedPlan
 
 export default function ProductCard({
   item: initialItem,
@@ -45,7 +45,7 @@ export default function ProductCard({
   selectedPlan,
   onLongPress,
   onChangeItem,
-  onAddToCart, // Adicionado
+  onAddToCart,
 }: ProductCardProps) {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -56,25 +56,29 @@ export default function ProductCard({
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [currentModalIndex, setCurrentModalIndex] = useState(currentIndex || 0);
 
-  // Item atual no modal
   const currentModalItem = items && items.length > 0 ? items[currentModalIndex] : initialItem;
 
-  const priceDisplay =
-    currentModalItem.targetScreen === "Parque" && currentModalItem.planPrices && selectedPlan
-      ? currentModalItem.planPrices[selectedPlan as keyof typeof currentModalItem.planPrices]
-      : currentModalItem.price || "Preço indisponível";
+  const priceDisplay = (() => {
+    if (selectedPlan && currentModalItem.planPrices) {
+      if (["Parque", "Planos"].includes(currentModalItem.targetScreen)) {
+        const price = currentModalItem.planPrices[selectedPlan as keyof typeof currentModalItem.planPrices];
+        console.log(`Preço para ${currentModalItem.name} (${selectedPlan}): ${price || "Indisponível"}`);
+        return price || "Preço indisponível";
+      }
+    }
+    console.log(`Preço padrão para ${currentModalItem.name}: ${currentModalItem.price || "Indisponível"}`);
+    return currentModalItem.price || "Preço indisponível";
+  })();
 
-  // Carregar as dimensões reais da imagem do item atual no modal
   useEffect(() => {
     Image.getSize(currentModalItem.images[0], (imgWidth, imgHeight) => {
       setImageDimensions({ width: imgWidth, height: imgHeight });
     }, (error) => {
       console.error("Erro ao carregar dimensões da imagem:", error);
-      setImageDimensions({ width: 300, height: 300 }); // Fallback
+      setImageDimensions({ width: 300, height: 300 });
     });
   }, [currentModalItem.images[0]]);
 
-  // Calcular o tamanho do modal e da imagem/descrição com logs
   const maxModalWidth = width * 0.9;
   const maxModalHeight = height * 0.9;
   let imageWidth = maxModalWidth;
@@ -96,10 +100,6 @@ export default function ProductCard({
       modalHeight = Math.min(maxModalHeight, imageHeight * 2);
     }
   }
-
-  console.log(`Modal Size - Width: ${modalWidth}px, Height: ${modalHeight}px`);
-  console.log(`Image Size - Width: ${imageWidth}px, Height: ${imageHeight}px`);
-  console.log(`Screen Size - Width: ${width}px, Height: ${height}px, Landscape: ${isLandscape}`);
 
   const modalContentStyle = StyleSheet.flatten([
     modalStyles.modalContent,
@@ -124,14 +124,17 @@ export default function ProductCard({
     },
   ]);
 
-  // Função para adicionar ao carrinho
   const addToCart = async () => {
     try {
       const storedCart = await AsyncStorage.getItem("cart");
       let cartItems: CartItem[] = storedCart ? JSON.parse(storedCart) : [];
   
-      const newItem: CartItem = { ...currentModalItem, quantity: 1 };
-      const existingItemIndex = cartItems.findIndex((item) => item.id === newItem.id);
+      const newItem: CartItem = { 
+        ...currentModalItem, 
+        quantity: 1,
+        selectedPlan: selectedPlan // Inclui o plano selecionado
+      };
+      const existingItemIndex = cartItems.findIndex((item) => item.id === newItem.id && item.selectedPlan === newItem.selectedPlan);
   
       if (existingItemIndex >= 0) {
         cartItems[existingItemIndex].quantity += 1;
@@ -143,9 +146,8 @@ export default function ProductCard({
       console.log("Item adicionado ao carrinho:", newItem);
       console.log("Carrinho atualizado:", cartItems);
   
-      // Chama a prop onAddToCart, se fornecida
       if (onAddToCart) {
-        onAddToCart(currentModalItem); 
+        onAddToCart(currentModalItem);
       }
     } catch (error) {
       console.error("Erro ao adicionar item ao carrinho:", error);
@@ -180,7 +182,6 @@ export default function ProductCard({
         </View>
       </TouchableOpacity>
 
-      {/* Modal de Visualização */}
       <Modal
         visible={modalVisible}
         transparent={true}
@@ -246,7 +247,6 @@ export default function ProductCard({
   );
 }
 
-// Estilos do modal
 const modalStyles = StyleSheet.create({
   modalContainer: {
     flex: 1,
@@ -266,12 +266,8 @@ const modalStyles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
   },
-  imageScroll: {
-    // Removido alignItems e justifyContent do style
-  },
-  modalImage: {
-    // Dimensões definidas dinamicamente no componente
-  },
+  imageScroll: {},
+  modalImage: {},
   descriptionCard: {
     padding: 10,
     backgroundColor: "#fff",

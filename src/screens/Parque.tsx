@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Item } from "../models/Item";
 import { initDatabase } from "../database/init";
-import { getProductsByTargetScreen, deleteProduct } from "../database/itemRepository";
+import { getParqueProducts, deleteParqueProduct } from "../database/itemRepository";
 import ProductCard from "../components/ProductCard";
 import styles from "../styles/ProductCardStyles";
 import { ModelsRoutes } from "../routes/modelRoutes";
 import { showItemAddedToast } from "../utils/toastUtils";
 
+type ParqueNavigationProp = DrawerNavigationProp<ModelsRoutes, "Parque">;
+
 const plans = ["Bronze", "Ouro", "Diamante", "Diamante Plus"];
 
 export default function Parque() {
+  const navigation = useNavigation<ParqueNavigationProp>();
   const [items, setItems] = useState<Item[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string>(plans[0]);
   const isFocused = useIsFocused();
@@ -20,8 +24,9 @@ export default function Parque() {
     const loadItems = async () => {
       try {
         const db = await initDatabase();
-        const loadedItems = await getProductsByTargetScreen(db, "Parque");
+        const loadedItems = await getParqueProducts(db);
         setItems(loadedItems);
+        console.log("Itens carregados da tabela itensParque:", loadedItems);
       } catch (error) {
         console.error("Erro ao carregar itens em Parque:", error);
         setItems([]);
@@ -31,8 +36,9 @@ export default function Parque() {
   }, [isFocused]);
 
   const handleAddToCart = (item: Item) => {
-    console.log("Adicionando ao carrinho:", item.name);
-    showItemAddedToast(); // Apenas exibe o toast, sem navegação
+    console.log(`Adicionando ao carrinho: ${item.name} com plano ${selectedPlan}`);
+    navigation.navigate("Shop", { selectedItem: item, selectedPlan });
+    showItemAddedToast();
   };
 
   const handleLongPress = (item: Item) => {
@@ -45,12 +51,12 @@ export default function Parque() {
           onPress: () =>
             Alert.alert(
               item.name,
-              `Quantidade: ${item.quantity}\nPreço (${selectedPlan}): ${item.planPrices![selectedPlan as keyof typeof item.planPrices]}`
+              `Quantidade: ${item.quantity}\nPreço (${selectedPlan}): ${item.planPrices![selectedPlan as keyof typeof item.planPrices] || "Indisponível"}`
             ),
         },
         {
           text: "Editar",
-          onPress: () => navigation.navigate("NewItem" as keyof ModelsRoutes, { itemToEdit: item, id: item.id }),
+          onPress: () => navigation.navigate("NewItem", { itemToEdit: item, id: item.id }),
         },
         {
           text: "Excluir",
@@ -58,11 +64,11 @@ export default function Parque() {
           onPress: async () => {
             try {
               const db = await initDatabase();
-              await deleteProduct(db, item.id);
+              await deleteParqueProduct(db, item.id);
               setItems((prev) => prev.filter((i) => i.id !== item.id));
               Alert.alert("Sucesso", `${item.name} foi excluído.`);
             } catch (error) {
-              console.error("Erro ao excluir item:", error);
+              console.error("Erro ao excluir item da tabela itensParque:", error);
               Alert.alert("Erro", "Falha ao excluir o item.");
             }
           },
@@ -77,8 +83,8 @@ export default function Parque() {
     <ProductCard
       item={item}
       selectedPlan={selectedPlan}
-      onLongPress={handleLongPress}
-      onAddToCart={handleAddToCart}
+      onLongPress={() => handleLongPress(item)}
+      onAddToCart={() => handleAddToCart(item)}
     />
   );
 

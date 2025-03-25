@@ -1,25 +1,36 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, Alert } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { Item } from "../models/Item";
 import { initDatabase } from "../database/init";
-import { getProductsByTargetScreen, deleteProduct } from "../database/itemRepository";
+import { getPlanosProducts, deletePlanosProduct } from "../database/itemRepository";
 import ProductCard from "../components/ProductCard";
 import styles from "../styles/ProductCardStyles";
 import { ModelsRoutes } from "../routes/modelRoutes";
 import { showItemAddedToast } from "../utils/toastUtils";
 
+type PlanosNavigationProp = DrawerNavigationProp<ModelsRoutes, "Planos">;
+
+const plans = ["Standard", "Master", "Prime"];
+
 export default function Planos() {
+  const navigation = useNavigation<PlanosNavigationProp>();
   const [items, setItems] = useState<Item[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<string>(plans[0]);
   const isFocused = useIsFocused();
 
   useEffect(() => {
     const loadItems = async () => {
       try {
         const db = await initDatabase();
-        const loadedItems = await getProductsByTargetScreen(db, "Planos");
+        const loadedItems = await getPlanosProducts(db);
         setItems(loadedItems);
-        console.log("Itens carregados para Planos:", loadedItems);
+        console.log("Itens carregados da tabela itensPlanos:", loadedItems);
+        // Log adicional para verificar preços
+        loadedItems.forEach((item) =>
+          console.log(`Preços para ${item.name}:`, item.planPrices)
+        );
       } catch (error) {
         console.error("Erro ao carregar itens em Planos:", error);
         setItems([]);
@@ -29,8 +40,11 @@ export default function Planos() {
   }, [isFocused]);
 
   const handleAddToCart = (item: Item) => {
-    console.log("Adicionando ao carrinho:", item.name);
-    showItemAddedToast(); // Apenas exibe o toast, sem navegação
+    console.log(`Adicionando ao carrinho: ${item.name} com plano ${selectedPlan}`);
+    const priceForPlan = item.planPrices?.[selectedPlan as keyof typeof item.planPrices];
+    console.log(`Preço para ${selectedPlan}: ${priceForPlan || "Indisponível"}`);
+    // navigation.navigate("Shop", { selectedItem: item, selectedPlan });
+    showItemAddedToast();
   };
 
   const handleLongPress = (item: Item) => {
@@ -41,11 +55,14 @@ export default function Planos() {
         {
           text: "Informações",
           onPress: () =>
-            Alert.alert(item.name, `Quantidade: ${item.quantity}\nPreço: ${item.price || "Indisponível"}`),
+            Alert.alert(
+              item.name,
+              `Quantidade: ${item.quantity}\nPreço (${selectedPlan}): ${item.planPrices?.[selectedPlan as keyof typeof item.planPrices] || "Indisponível"}`
+            ),
         },
         {
           text: "Editar",
-          onPress: () => navigation.navigate("NewItem" as keyof ModelsRoutes, { itemToEdit: item, id: item.id }),
+          onPress: () => navigation.navigate("NewItem", { itemToEdit: item, id: item.id }),
         },
         {
           text: "Excluir",
@@ -53,11 +70,11 @@ export default function Planos() {
           onPress: async () => {
             try {
               const db = await initDatabase();
-              await deleteProduct(db, item.id);
+              await deletePlanosProduct(db, item.id);
               setItems((prev) => prev.filter((i) => i.id !== item.id));
               Alert.alert("Sucesso", `${item.name} foi excluído.`);
             } catch (error) {
-              console.error("Erro ao excluir item:", error);
+              console.error("Erro ao excluir item da tabela itensPlanos:", error);
               Alert.alert("Erro", "Falha ao excluir o item.");
             }
           },
@@ -71,14 +88,32 @@ export default function Planos() {
   const renderItem = ({ item }: { item: Item }) => (
     <ProductCard
       item={item}
-      onLongPress={handleLongPress}
-      onAddToCart={handleAddToCart}
+      selectedPlan={selectedPlan}
+      onLongPress={() => handleLongPress(item)}
+      onAddToCart={() => handleAddToCart(item)}
     />
   );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Planos</Text>
+      <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", marginBottom: 20 }}>
+        {plans.map((plan) => (
+          <TouchableOpacity
+            key={plan}
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 15,
+              borderRadius: 20,
+              margin: 5,
+              backgroundColor: selectedPlan === plan ? "#007BFF" : "#808080",
+            }}
+            onPress={() => setSelectedPlan(plan)}
+          >
+            <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 14 }}>{plan}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <FlatList
         data={items}
         renderItem={renderItem}

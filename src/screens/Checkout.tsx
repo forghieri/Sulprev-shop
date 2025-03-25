@@ -35,6 +35,7 @@ type CartItem = {
   targetScreen: string;
   category: string;
   planPrices?: { [key: string]: string };
+  selectedPlan?: string; // Adicionado explicitamente
 };
 
 const DATABASE_NAME = "app_database_v2.db";
@@ -105,26 +106,34 @@ export default function Checkout() {
     }
   };
 
+  const getItemPrice = (item: CartItem): string => {
+    if (item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)) {
+      const planPrice = item.planPrices[item.selectedPlan];
+      console.log(`Preço do plano ${item.selectedPlan} para ${item.name}:`, planPrice);
+      return planPrice || "Preço indisponível";
+    }
+    console.log(`Preço padrão para ${item.name}:`, item.price);
+    return item.price || "Preço indisponível";
+  };
+
   const renderCartItem = ({ item }: { item: CartItem }) => {
     console.log("Renderizando item no carrinho:", item);
 
-    let priceValue = 0;
-    if (item.price) {
-      priceValue = parseFloat(item.price.replace("R$ ", "").replace(".", "").replace(",", "."));
-    } else if (item.planPrices && Object.keys(item.planPrices).length > 0) {
-      const firstPlan = Object.values(item.planPrices)[0];
-      priceValue = parseFloat(firstPlan.replace("R$ ", "").replace(".", "").replace(",", "."));
-    }
-    const itemTotal = isNaN(priceValue) ? 0 : priceValue * item.quantity;
+    const priceStr = getItemPrice(item);
+    const priceValue = parseFloat(priceStr.replace("R$ ", "").replace(".", "").replace(",", ".")) || 0;
+    const itemTotal = priceValue * item.quantity;
 
     return (
       <View style={styles.cartItem}>
         <Text style={styles.itemText}>{item.name}</Text>
         <Text style={styles.itemDetail}>Quantidade: {item.quantity}</Text>
         <Text style={styles.itemDetail}>
-          Preço unitário: {item.price || (item.planPrices ? Object.values(item.planPrices)[0] : "Não disponível")}
+          Preço unitário: {priceStr}
         </Text>
         <Text style={styles.itemDetail}>Preço total: R$ {itemTotal.toFixed(2)}</Text>
+        {item.selectedPlan && (
+          <Text style={styles.itemDetail}>Plano: {item.selectedPlan}</Text>
+        )}
       </View>
     );
   };
@@ -237,7 +246,7 @@ export default function Checkout() {
         <FlatList
           data={cartItems}
           renderItem={renderCartItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => `${item.id}-${item.selectedPlan || "no-plan"}`}
           scrollEnabled={false}
         />
         <Text style={styles.totalText}>Total: R$ {total.toFixed(2)}</Text>
