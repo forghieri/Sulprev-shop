@@ -25,7 +25,7 @@ type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
 type CartItem = Item & { quantity: number; selectedPlan?: string };
 
 const { width } = Dimensions.get("window");
-const ITEM_WIDTH = width * 0.8;
+const ITEM_WIDTH = Math.min(width * 0.9, 400);
 
 const trashIcon = `
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -68,7 +68,7 @@ const CartItemComponent = React.memo(({ item, onRemove, onIncrease, onDecrease }
       <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
       <View style={styles.itemDetails}>
         <View style={styles.headerContainer}>
-          <Text style={styles.itemName}>{item.name}</Text>
+          <Text style={styles.itemName} numberOfLines={2} ellipsizeMode="tail">{item.name}</Text>
           <TouchableOpacity
             style={styles.trashButton}
             onPress={() =>
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   },
   cartItem: {
     flexDirection: "row",
-    width: ITEM_WIDTH,
+    width: "100%",
     alignSelf: "center",
     backgroundColor: "#f9f9f9",
     borderRadius: 10,
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    position: "relative",
+    position: "relative", // Necessário para o posicionamento absoluto do quantityContainer
   },
   itemImage: {
     width: 80,
@@ -325,11 +325,12 @@ const styles = StyleSheet.create({
   },
   itemDetails: {
     flex: 1,
+    flexDirection: "column",
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 5,
   },
   itemName: {
@@ -337,6 +338,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     flex: 1,
+    flexWrap: "wrap",
+    numberOfLines: 2,
+    ellipsizeMode: "tail",
   },
   itemPrice: {
     fontSize: 14,
