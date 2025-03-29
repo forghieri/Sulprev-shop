@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,10 @@ import {
   Dimensions,
 } from "react-native";
 import { SvgXml } from "react-native-svg";
-import { RouteProp, useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
+import { RouteProp, useRoute, useNavigation, useIsFocused } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ModelsRoutes } from "../routes/modelRoutes";
-import { Item } from "../models/Item";
+import { Item } from "../models/Item"; // Certifique-se de que Item está definido corretamente
 import { formatPrice } from "../utils/formatPrice";
 import { sendOrder, initPendingOrdersCheck } from "../utils/sendOrder";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
@@ -22,7 +22,11 @@ import { useCart } from "../utils/CartContext";
 type ShopRouteProp = RouteProp<ModelsRoutes, "Shop">;
 type ShopNavigationProp = DrawerNavigationProp<ModelsRoutes, "Shop">;
 
-type CartItem = Item & { quantity: number; selectedPlan?: string };
+// Definição explícita de CartItem, incluindo selectedPlan
+type CartItem = Item & {
+  quantity: number;
+  selectedPlan?: string; // Garantindo que selectedPlan esteja aqui
+};
 
 const { width } = Dimensions.get("window");
 const ITEM_WIDTH = Math.min(width * 0.9, 400);
@@ -37,125 +41,149 @@ const trashIcon = `
   </svg>
 `;
 
-const CartItemComponent = React.memo(({ item, onRemove, onIncrease, onDecrease }: {
-  item: CartItem;
-  onRemove: (id: string, selectedPlan?: string) => void;
-  onIncrease: (id: string, selectedPlan?: string) => void;
-  onDecrease: (id: string, selectedPlan?: string) => void;
-}) => {
-  console.log(`Renderizando item no carrinho: ${item.name}`);
-  if (!item || !item.id) return <Text>Item inválido</Text>;
+const CartItemComponent = React.memo(
+  ({
+    item,
+    onRemove,
+    onIncrease,
+    onDecrease,
+  }: {
+    item: CartItem;
+    onRemove: (id: string, selectedPlan?: string) => void;
+    onIncrease: (id: string, selectedPlan?: string) => void;
+    onDecrease: (id: string, selectedPlan?: string) => void;
+  }) => {
+    if (!item || !item.id) return <Text>Item inválido</Text>;
 
-  const itemPrice = item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)
-    ? item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível"
-    : item.price || "Preço indisponível";
-  
-  const parsePriceToNumber = (price: string): number => {
-    const cleanedPrice = price.replace(/R\$\s*/g, "").replace(/\s/g, "").trim();
-    const parsed = parseFloat(
-      cleanedPrice.includes(".") && cleanedPrice.includes(",")
-        ? cleanedPrice.replace(/\./g, "").replace(",", ".")
-        : cleanedPrice.replace(",", ".")
-    );
-    return isNaN(parsed) ? 0 : parsed;
-  };
+    const itemPrice =
+      item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)
+        ? item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível"
+        : item.price || "Preço indisponível";
 
-  const subtotalValue = parsePriceToNumber(itemPrice) * item.quantity;
-  const formattedSubtotal = formatPrice(subtotalValue);
+    const parsePriceToNumber = (price: string): number => {
+      const cleanedPrice = price.replace(/R\$\s*/g, "").replace(/\s/g, "").trim();
+      const parsed = parseFloat(
+        cleanedPrice.includes(".") && cleanedPrice.includes(",")
+          ? cleanedPrice.replace(/\./g, "").replace(",", ".")
+          : cleanedPrice.replace(",", ".")
+      );
+      return isNaN(parsed) ? 0 : parsed;
+    };
 
-  return (
-    <View style={styles.cartItem}>
-      <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
-      <View style={styles.itemDetails}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.itemName} numberOfLines={2} ellipsizeMode="tail">{item.name}</Text>
-          <TouchableOpacity
-            style={styles.trashButton}
-            onPress={() =>
-              Alert.alert(
-                "Remover",
-                `Deseja remover ${item.name} (${item.selectedPlan || "Sem plano"}) do carrinho?`,
-                [
-                  { text: "Cancelar" },
-                  { text: "Sim", onPress: () => onRemove(item.id, item.selectedPlan) },
-                ]
-              )
-            }
-          >
-            <SvgXml xml={trashIcon} width={24} height={24} />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.itemPrice}>
-          Und. ({item.selectedPlan || "Padrão"}): {itemPrice}
-        </Text>
-        <Text style={styles.itemSubtotal}>Subtotal: {formattedSubtotal}</Text>
-        <Text style={styles.itemTag}>Origem: {item.targetScreen || "Desconhecida"}</Text>
-        {item.selectedPlan && (
-          <Text style={styles.itemTag}>Plano: {item.selectedPlan}</Text>
-        )}
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity
-            style={styles.quantityButton}
-            onPress={() => onDecrease(item.id, item.selectedPlan)}
-          >
-            <Text style={styles.quantityButtonText}>-</Text>
-          </TouchableOpacity>
-          <Text style={styles.quantityText}>{item.quantity}</Text>
-          <TouchableOpacity
-            style={styles.quantityButton}
-            onPress={() => onIncrease(item.id, item.selectedPlan)}
-          >
-            <Text style={styles.quantityButtonText}>+</Text>
-          </TouchableOpacity>
+    const subtotalValue = parsePriceToNumber(itemPrice) * item.quantity;
+    const formattedSubtotal = formatPrice(subtotalValue);
+
+    return (
+      <View style={styles.cartItem}>
+        <Image source={{ uri: item.images[0] || "" }} style={styles.itemImage} />
+        <View style={styles.itemDetails}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.itemName} numberOfLines={2} ellipsizeMode="tail">
+              {item.name}
+            </Text>
+            <TouchableOpacity
+              style={styles.trashButton}
+              onPress={() =>
+                Alert.alert(
+                  "Remover",
+                  `Deseja remover ${item.name} (${item.selectedPlan || "Sem plano"}) do carrinho?`,
+                  [
+                    { text: "Cancelar" },
+                    {
+                      text: "Sim",
+                      onPress: () => onRemove(item.id, item.selectedPlan),
+                    },
+                  ]
+                )
+              }
+            >
+              <SvgXml xml={trashIcon} width={24} height={24} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.itemPrice}>
+            Und. ({item.selectedPlan || "Padrão"}): {itemPrice}
+          </Text>
+          <Text style={styles.itemSubtotal}>Subtotal: {formattedSubtotal}</Text>
+          <Text style={styles.itemTag}>Origem: {item.targetScreen || "Desconhecida"}</Text>
+          {item.selectedPlan && <Text style={styles.itemTag}>Plano: {item.selectedPlan}</Text>}
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => onDecrease(item.id, item.selectedPlan)}
+            >
+              <Text style={styles.quantityButtonText}>-</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantityText}>{item.quantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => onIncrease(item.id, item.selectedPlan)}
+            >
+              <Text style={styles.quantityButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
-  );
-}, (prevProps, nextProps) => {
-  return prevProps.item.id === nextProps.item.id &&
-         prevProps.item.quantity === nextProps.item.quantity &&
-         prevProps.item.selectedPlan === nextProps.item.selectedPlan;
-});
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.item.quantity === nextProps.item.quantity &&
+    prevProps.item.selectedPlan === nextProps.item.selectedPlan
+);
 
 export default function Shop() {
   const route = useRoute<ShopRouteProp>();
   const navigation = useNavigation<ShopNavigationProp>();
   const { cartItems, setCartItems, loadCartItems } = useCart();
-  const hasLoadedRef = useRef(false);
+  const isFocused = useIsFocused(); // Hook para verificar se a tela está focada
+  const hasLoadedRef = useRef(false); // Controla se o carrinho já foi carregado na sessão atual
+  const prevFocusRef = useRef(false); // Armazena o estado anterior de foco
 
-  useFocusEffect(
-    useCallback(() => {
-      if (hasLoadedRef.current) {
-        console.log("Tela já foi carregada anteriormente, ignorando");
-        return;
-      }
-      console.log("Tela focada: carregando carrinho e verificando pedidos pendentes");
-      hasLoadedRef.current = true;
+  console.log("Shop renderizado"); // Log para verificar re-renderizações
 
-      loadCartItems()
-        .then(() => console.log("loadCartItems concluído"))
-        .catch((err) => console.error("Erro em loadCartItems:", err));
+  const loadCartOnce = useCallback(async () => {
+    console.log("Carregando carrinho...");
+    try {
+      await loadCartItems();
+      console.log("loadCartItems concluído");
+    } catch (err) {
+      console.error("Erro em loadCartItems:", err);
+      return;
+    }
 
+    try {
       const pendingOrdersCheck = initPendingOrdersCheck();
       if (pendingOrdersCheck && typeof pendingOrdersCheck.then === "function") {
-        pendingOrdersCheck
-          .then(() => console.log("initPendingOrdersCheck concluído"))
-          .catch((err) => console.error("Erro em initPendingOrdersCheck:", err));
+        await pendingOrdersCheck;
+        console.log("initPendingOrdersCheck concluído");
       } else {
         console.log("initPendingOrdersCheck não é assíncrono, executado diretamente");
       }
+    } catch (err) {
+      console.error("Erro em initPendingOrdersCheck:", err);
+    }
+  }, [loadCartItems]);
 
-      return () => {
-        console.log("Tela desfocada");
-      };
-    }, [loadCartItems])
-  );
-
+  // Controle de carregamento baseado no foco
   useEffect(() => {
-    console.log("cartItems mudou:", JSON.stringify(cartItems));
-  }, [cartItems]);
+    // Se a tela acabou de ser focada e não estava antes
+    if (isFocused && !prevFocusRef.current && !hasLoadedRef.current) {
+      loadCartOnce();
+      hasLoadedRef.current = true; // Marca como carregado
+      console.log("Carrinho carregado ao focar a tela");
+    } 
+    // Se a tela foi desfocada
+    else if (!isFocused && prevFocusRef.current) {
+      console.log("Tela desfocada, resetando estado de carregamento");
+      hasLoadedRef.current = false; // Reseta ao desfocar
+    }
 
-  React.useEffect(() => {
+    // Atualiza o estado anterior de foco
+    prevFocusRef.current = isFocused;
+  }, [isFocused, loadCartOnce]);
+
+  // Manipula adição de itens via route.params
+  useEffect(() => {
     const { selectedItem, selectedPlan } = route.params || {};
     if (!selectedItem || !selectedPlan) return;
 
@@ -165,22 +193,21 @@ export default function Shop() {
       const existingItemIndex = prevItems.findIndex(
         (item) => item.id === newItem.id && item.selectedPlan === newItem.selectedPlan
       );
+      let updatedItems;
       if (existingItemIndex >= 0) {
-        const updatedItems = [...prevItems];
+        updatedItems = [...prevItems];
         updatedItems[existingItemIndex].quantity += 1;
-        AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
-          console.error("Erro ao salvar carrinho:", error)
-        );
-        return updatedItems;
+      } else {
+        updatedItems = [...prevItems, newItem];
       }
-      const updatedItems = [...prevItems, newItem];
       AsyncStorage.setItem("cart", JSON.stringify(updatedItems)).catch((error) =>
         console.error("Erro ao salvar carrinho:", error)
       );
+      console.log("Carrinho atualizado:", JSON.stringify(updatedItems));
       return updatedItems;
     });
     navigation.setParams({ selectedItem: undefined, selectedPlan: undefined });
-  }, [route.params?.selectedItem, route.params?.selectedPlan, navigation, setCartItems]);
+  }, [route.params, navigation, setCartItems]);
 
   const parsePriceToNumber = (price: string | number | undefined): number => {
     if (!price) return 0;
@@ -195,13 +222,19 @@ export default function Shop() {
   };
 
   const getItemPrice = (item: CartItem): string => {
-    if (item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)) {
-      return item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível";
+    if (
+      item.selectedPlan &&
+      item.planPrices &&
+      ["Parque", "Planos"].includes(item.targetScreen)
+    ) {
+      return (
+        item.planPrices[item.selectedPlan as keyof typeof item.planPrices] || "Preço indisponível"
+      );
     }
     return item.price || "Preço indisponível";
   };
 
-  const calculateTotal = useMemo(() => {
+  const calculateTotal = React.useMemo(() => {
     return cartItems.reduce((sum, item) => {
       const price = parsePriceToNumber(getItemPrice(item));
       return sum + price * item.quantity;
@@ -315,7 +348,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
-    position: "relative", // Necessário para o posicionamento absoluto do quantityContainer
+    position: "relative",
   },
   itemImage: {
     width: 80,
@@ -339,8 +372,6 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
     flexWrap: "wrap",
-    numberOfLines: 2,
-    ellipsizeMode: "tail",
   },
   itemPrice: {
     fontSize: 14,

@@ -105,6 +105,17 @@ export default function Checkout() {
         }
     };
 
+    const parsePriceToNumber = (price: string | undefined): number => {
+        if (!price || price === "Preço indisponível") return 0;
+        const cleanedPrice = price
+            .replace(/R\$\s*/g, "") // Remove "R$" e espaços
+            .replace(/\./g, "") // Remove pontos de milhar
+            .replace(",", ".") // Converte vírgula para ponto decimal
+            .trim();
+        const parsed = parseFloat(cleanedPrice);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
     const getItemPrice = (item: CartItem): string => {
         if (item.selectedPlan && item.planPrices && ["Parque", "Planos"].includes(item.targetScreen)) {
             const planPrice = item.planPrices[item.selectedPlan];
@@ -119,7 +130,7 @@ export default function Checkout() {
         console.log("Renderizando item no carrinho:", item);
 
         const priceStr = getItemPrice(item);
-        const priceValue = parseFloat(priceStr.replace("R$ ", "").replace(".", "").replace(",", ".")) || 0;
+        const priceValue = parsePriceToNumber(priceStr);
         const itemTotal = priceValue * item.quantity;
 
         return (
@@ -442,7 +453,7 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
-        justifyContent: "space-between", // Para posicionar o botão na parte inferior
+        justifyContent: "space-between",
     },
     scrollContent: {
         padding: 20,
